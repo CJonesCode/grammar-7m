@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { generateSuggestions } from "@/lib/grammar"
 
 export const runtime = "nodejs"
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   console.log(`[${new Date().toISOString()}] Suggestions API called for document:`, params.id)
 
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createClient()
 
     // Check authentication
     const {
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createClient()
 
     // Check authentication
     const {

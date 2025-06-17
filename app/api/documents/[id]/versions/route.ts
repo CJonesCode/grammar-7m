@@ -1,13 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { calculateReadability } from "@/lib/readability"
-import { hashContent, shouldCreateVersion } from "@/lib/version-utils"
+import { hashContent } from "@/lib/version-utils"
 
 export const runtime = "nodejs"
 
+// Simple version check without external dependencies
+async function shouldCreateVersionServer(supabase: any, documentId: string, content: string): Promise<boolean> {
+  const contentHash = hashContent(content)
+
+  try {
+    const { data } = await supabase
+      .from("document_versions")
+      .select("id")
+      .eq("document_id", documentId)
+      .eq("content_hash", contentHash)
+      .limit(1)
+
+    return !data || data.length === 0
+  } catch (error) {
+    console.error("Error checking version:", error)
+    return true // Default to creating version if check fails
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createClient()
 
     // Check authentication
     const {
@@ -46,7 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createClient()
 
     // Check authentication
     const {
@@ -77,7 +96,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Check if we should create a new version (avoid duplicates)
-    const shouldCreate = await shouldCreateVersion(params.id, content)
+    const shouldCreate = await shouldCreateVersionServer(supabase, params.id, content)
     if (!shouldCreate) {
       return NextResponse.json({ message: "Version already exists" })
     }
