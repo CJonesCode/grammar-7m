@@ -1,15 +1,24 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, User, Trash2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ArrowLeft, User, Trash2, Save } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -19,82 +28,115 @@ interface UserProfile {
 }
 
 export default function SettingsPage() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [fullName, setFullName] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login")
+      return
+    }
+
     if (user) {
       fetchProfile()
     }
-  }, [user])
+  }, [user, authLoading, router])
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch("/api/profile")
-      if (response.ok) {
-        const data = await response.json()
-        setProfile(data.profile)
-        setFullName(data.profile.full_name || "")
-      } else {
-        setError("Failed to load profile")
-      }
-    } catch (error) {
-      setError("Failed to load profile")
+      const { data, error } = await supabase.from("users").select("*").eq("id", user?.id).single()
+
+      if (error) throw error
+
+      setProfile(data)
+      setFullName(data.full_name || "")
+    } catch (error: any) {
+      setError(error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const updateProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const updateProfile = async () => {
+    if (!profile) return
+
     setSaving(true)
     setError("")
     setSuccess("")
 
     try {
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          full_name: fullName.trim(),
-        }),
-      })
+      const { error } = await supabase
+        .from("users")
+        .update({
+          full_name: fullName,
+        })
+        .eq("id", profile.id)
 
-      if (response.ok) {
-        const data = await response.json()
-        setProfile(data.profile)
-        setSuccess("Profile updated successfully")
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || "Failed to update profile")
-      }
-    } catch (error) {
-      setError("Failed to update profile")
+      if (error) throw error
+
+      setProfile({ ...profile, full_name: fullName })
+      setSuccess("Profile updated successfully!")
+    } catch (error: any) {
+      setError(error.message)
     } finally {
       setSaving(false)
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
+  const deleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") {
+      setError("Please type DELETE to confirm account deletion")
+      return
+    }
+
+    setDeleting(true)
+    setError("")
+
+    try {
+      // First delete user data (documents will be cascade deleted due to foreign key)
+      const { error: deleteUserError } = await supabase.from("users").delete().eq("id", user?.id)
+      if (deleteUserError) throw deleteUserError
+
+      // Then delete the auth user account
+      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(user?.id!)
+      if (deleteAuthError) {
+        // If admin delete fails, try regular account deletion
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) throw signOutError
+      }
+
+      // Redirect to login
+      router.push("/login")
+    } catch (error: any) {
+      setError(error.message)
+      setDeleting(false)
+    }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading settings...</div>
+        <div className="text-lg">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Profile not found</h2>
+          <Button onClick={() => router.push("/dashboard")}>Back to Dashboard</Button>
+        </div>
       </div>
     )
   }
@@ -104,19 +146,31 @@ export default function SettingsPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-6">
-            <Button variant="ghost" onClick={() => router.push("/dashboard")} className="mr-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Profile Settings */}
           <Card>
             <CardHeader>
@@ -124,100 +178,112 @@ export default function SettingsPage() {
                 <User className="h-5 w-5 mr-2" />
                 Profile Information
               </CardTitle>
-              <CardDescription>Update your personal information and preferences</CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={updateProfile} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" value={profile?.email || ""} disabled />
-                    <p className="text-sm text-gray-500 mt-1">Email cannot be changed</p>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Enter your full name"
-                    />
-                  </div>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input id="email" type="email" value={profile.email} disabled className="bg-gray-50" />
+                  <p className="text-xs text-gray-600 mt-1">Email cannot be changed</p>
                 </div>
 
                 <div>
-                  <Label>Member Since</Label>
-                  <p className="text-sm text-gray-600">{profile ? formatDate(profile.created_at) : "Unknown"}</p>
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter your full name"
+                  />
                 </div>
+              </div>
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+              <div>
+                <Label>Member Since</Label>
+                <p className="text-sm text-gray-600 mt-1">
+                  {new Date(profile.created_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
 
-                {success && (
-                  <Alert>
-                    <AlertDescription>{success}</AlertDescription>
-                  </Alert>
-                )}
-
-                <Button type="submit" disabled={saving}>
+              <div className="flex justify-end">
+                <Button onClick={updateProfile} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>
-              </form>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Account Actions */}
-          <Card>
+          {/* Danger Zone */}
+          <Card className="border-red-200">
             <CardHeader>
-              <CardTitle className="text-red-600">Danger Zone</CardTitle>
-              <CardDescription>Irreversible actions that affect your account</CardDescription>
+              <CardTitle className="text-red-600 flex items-center">
+                <Trash2 className="h-5 w-5 mr-2" />
+                Danger Zone
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg">
-                  <div>
-                    <h3 className="font-medium text-red-900">Sign Out</h3>
-                    <p className="text-sm text-red-700">Sign out of your account on this device</p>
-                  </div>
-                  <Button variant="outline" onClick={signOut} className="text-red-600 border-red-300 hover:bg-red-50">
-                    Sign Out
-                  </Button>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">Delete Account</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg">
-                  <div>
-                    <h3 className="font-medium text-red-900">Delete Account</h3>
-                    <p className="text-sm text-red-700">
-                      Permanently delete your account and all associated data. This action cannot be undone.
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Are you sure you want to delete your account? This action cannot be undone and all your documents will be permanently lost.",
-                        )
-                      ) {
-                        alert("Account deletion is not implemented in this demo.")
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Account
-                  </Button>
-                </div>
+                <Separator />
+
+                <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Account
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Delete Account</DialogTitle>
+                      <DialogDescription>
+                        This action will permanently delete your account and all your documents. This cannot be undone.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="deleteConfirmation">
+                          Type <strong>DELETE</strong> to confirm:
+                        </Label>
+                        <Input
+                          id="deleteConfirmation"
+                          value={deleteConfirmation}
+                          onChange={(e) => setDeleteConfirmation(e.target.value)}
+                          placeholder="DELETE"
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={deleteAccount}
+                          disabled={deleting || deleteConfirmation !== "DELETE"}
+                        >
+                          {deleting ? "Deleting..." : "Delete Account"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardContent>
           </Card>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client"
+import { supabase } from "@/lib/supabaseClient"
 
 // Simple hash function for content comparison
 export function hashContent(content: string): string {
@@ -19,7 +19,6 @@ export async function shouldCreateVersion(documentId: string, content: string): 
   const contentHash = hashContent(content)
 
   try {
-    const supabase = createClient()
     const { data } = await supabase
       .from("document_versions")
       .select("id")

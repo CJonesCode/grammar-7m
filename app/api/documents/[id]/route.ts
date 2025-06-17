@@ -1,12 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServerSupabaseClient } from "@/lib/supabase"
 import { calculateReadability } from "@/lib/readability"
-
-export const runtime = "nodejs"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerSupabaseClient()
 
     // Check authentication
     const {
@@ -38,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerSupabaseClient()
 
     // Check authentication
     const {
@@ -82,7 +80,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerSupabaseClient()
 
     // Check authentication
     const {
