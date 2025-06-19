@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient"
+import { supabase } from "@/lib/supabase"
 
 // Simple hash function for content comparison
 export function hashContent(content: string): string {

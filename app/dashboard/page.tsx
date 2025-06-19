@@ -7,7 +7,14 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Plus, FileText, Calendar, LogOut, Settings, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -167,6 +174,7 @@ export default function DashboardPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Document</DialogTitle>
+                <DialogDescription>Enter a title for your new document. You can change this later.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
