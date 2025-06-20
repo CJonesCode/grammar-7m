@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 
@@ -19,30 +18,86 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const initialized = useRef(false)
+  const mounted = useRef(true)
 
   useEffect(() => {
+    // Prevent double initialization
+    if (initialized.current) {
+      return
+    }
+    initialized.current = true
+
+    let authSubscription: any = null
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        ensureUserProfile(session.user)
-      }
-      setLoading(false)
-    })
+    const getInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user && event === "SIGNED_IN") {
-        await ensureUserProfile(session.user)
-      }
-      setLoading(false)
-    })
+        if (!mounted.current) return
 
-    return () => subscription.unsubscribe()
-  }, [])
+        if (error) {
+          console.error("Error getting session:", error)
+        } else {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await ensureUserProfile(session.user)
+          }
+        }
+      } catch (error) {
+        console.error("Error in getInitialSession:", error)
+      } finally {
+        if (mounted.current) {
+          setLoading(false)
+        }
+      }
+    }
+
+    // Set up auth state listener
+    const setupAuthListener = () => {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!mounted.current) return
+
+        // Skip logging INITIAL_SESSION to reduce noise
+        if (event !== "INITIAL_SESSION") {
+          console.log("Auth state changed:", event)
+        }
+
+        setUser(session?.user ?? null)
+        if (session?.user && event === "SIGNED_IN") {
+          await ensureUserProfile(session.user)
+        }
+
+        // Only set loading to false after initial session
+        if (event === "INITIAL_SESSION") {
+          setLoading(false)
+        }
+      })
+
+      authSubscription = subscription
+    }
+
+    // Initialize auth
+    const initializeAuth = async () => {
+      setupAuthListener()
+      await getInitialSession()
+    }
+
+    initializeAuth()
+
+    return () => {
+      mounted.current = false
+      if (authSubscription) {
+        authSubscription.unsubscribe()
+      }
+    }
+  }, []) // Empty dependency array to run only once
 
   const ensureUserProfile = async (user: User) => {
     try {

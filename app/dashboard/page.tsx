@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -56,10 +55,14 @@ export default function DashboardPage() {
 
   const fetchDocuments = async () => {
     try {
-      const { data, error } = await supabase.from("documents").select("*").order("last_edited_at", { ascending: false })
+      const response = await fetch("/api/documents")
 
-      if (error) throw error
-      setDocuments(data || [])
+      if (!response.ok) {
+        throw new Error("Failed to fetch documents")
+      }
+
+      const { documents } = await response.json()
+      setDocuments(documents || [])
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -72,17 +75,22 @@ export default function DashboardPage() {
 
     setIsCreating(true)
     try {
-      const { data, error } = await supabase
-        .from("documents")
-        .insert({
+      const response = await fetch("/api/documents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           title: newDocTitle,
           content: "",
-          user_id: user?.id,
-        })
-        .select()
-        .single()
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to create document")
+      }
+
+      const { document: data } = await response.json()
 
       setDocuments([data, ...documents])
       setNewDocTitle("")
@@ -101,9 +109,13 @@ export default function DashboardPage() {
     }
 
     try {
-      const { error } = await supabase.from("documents").delete().eq("id", docId)
+      const response = await fetch(`/api/documents/${docId}`, {
+        method: "DELETE",
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to delete document")
+      }
 
       setDocuments(documents.filter((doc) => doc.id !== docId))
     } catch (error: any) {

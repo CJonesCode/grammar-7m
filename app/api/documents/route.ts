@@ -1,11 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
@@ -34,9 +32,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,

@@ -1,11 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
@@ -30,9 +28,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
@@ -59,6 +55,32 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ profile })
   } catch (error) {
     console.error("Update profile API error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    // Check authentication using the singleton server client
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Delete user data (documents will be cascade deleted due to foreign key)
+    const { error: deleteUserError } = await supabase.from("users").delete().eq("id", user.id)
+    if (deleteUserError) {
+      return NextResponse.json({ error: deleteUserError.message }, { status: 500 })
+    }
+
+    // Note: We can't delete the auth user from API routes due to RLS
+    // The client will handle sign out, which effectively "deletes" the session
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Delete account API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

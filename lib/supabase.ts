@@ -1,37 +1,60 @@
 import { createClient } from "@supabase/supabase-js"
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Singleton pattern for client-side Supabase client
-let supabaseInstance: ReturnType<typeof createClient> | null = null
+// Single client instance for browser
+let browserClient: ReturnType<typeof createClient> | null = null
 
-export const supabase = (() => {
-  if (typeof window === "undefined") {
-    // Server-side: create new instance each time
-    return createClient(supabaseUrl, supabaseAnonKey)
+// Single server client instance (for API routes)
+let serverClient: ReturnType<typeof createClient> | null = null
+
+// Single SSR client instance (for pages with cookies)
+let ssrClient: any = null
+
+// Create browser client with singleton pattern
+function createBrowserClient() {
+  if (browserClient) {
+    return browserClient
   }
 
-  // Client-side: use singleton
-  if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    })
+  browserClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: "pkce",
+    },
+  })
+
+  return browserClient
+}
+
+// Create server client with singleton pattern
+function createServerClient() {
+  if (serverClient) {
+    return serverClient
   }
 
-  return supabaseInstance
-})()
+  serverClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 
-// Server-side client
-export async function createServerSupabaseClient() {
-  const cookieStore = await cookies()
+  return serverClient
+}
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+// Create SSR client with singleton pattern
+async function createSSRClient(cookieStore: any) {
+  if (ssrClient) {
+    return ssrClient
+  }
+
+  const { createServerClient: createSSRServerClient } = await import("@supabase/ssr")
+
+  ssrClient = createSSRServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
@@ -47,4 +70,39 @@ export async function createServerSupabaseClient() {
       },
     },
   })
+
+  return ssrClient
+}
+
+// Export the main client
+export const supabase = typeof window !== "undefined" ? createBrowserClient() : createServerClient()
+
+// Server-side client factory for SSR with cookies
+export async function createServerSupabaseClient(cookieStore?: any) {
+  // For API routes, use the singleton server client
+  if (!cookieStore) {
+    return createServerClient()
+  }
+
+  // For SSR pages, use the singleton SSR client
+  return await createSSRClient(cookieStore)
+}
+
+// Reset function for development hot reloading (server-side only)
+if (typeof window === "undefined") {
+  // Only check NODE_ENV on server side
+  const isDevelopment = process.env.NODE_ENV === "development"
+
+  if (isDevelopment) {
+    // Reset singletons in development for hot reloading
+    const resetClients = () => {
+      browserClient = null
+      serverClient = null
+      ssrClient = null
+    }
+
+    // Store reset function globally for hot reloading
+    // @ts-ignore
+    global.__supabase_reset = resetClients
+  }
 }

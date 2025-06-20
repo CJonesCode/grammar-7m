@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
+// Remove this line
+// import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -53,9 +54,13 @@ export default function SettingsPage() {
 
   const fetchProfile = async () => {
     try {
-      const { data, error } = await supabase.from("users").select("*").eq("id", user?.id).single()
+      const response = await fetch("/api/profile")
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to fetch profile")
+      }
+
+      const { profile: data } = await response.json()
 
       setProfile(data)
       setFullName(data.full_name || "")
@@ -74,16 +79,23 @@ export default function SettingsPage() {
     setSuccess("")
 
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           full_name: fullName,
-        })
-        .eq("id", profile.id)
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to update profile")
+      }
 
-      setProfile({ ...profile, full_name: fullName })
+      const { profile: updatedProfile } = await response.json()
+
+      setProfile(updatedProfile)
       setSuccess("Profile updated successfully!")
     } catch (error: any) {
       setError(error.message)
@@ -102,19 +114,16 @@ export default function SettingsPage() {
     setError("")
 
     try {
-      // First delete user data (documents will be cascade deleted due to foreign key)
-      const { error: deleteUserError } = await supabase.from("users").delete().eq("id", user?.id)
-      if (deleteUserError) throw deleteUserError
+      const response = await fetch("/api/profile", {
+        method: "DELETE",
+      })
 
-      // Then delete the auth user account
-      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(user?.id!)
-      if (deleteAuthError) {
-        // If admin delete fails, try regular account deletion
-        const { error: signOutError } = await supabase.auth.signOut()
-        if (signOutError) throw signOutError
+      if (!response.ok) {
+        throw new Error("Failed to delete account")
       }
 
-      // Redirect to login
+      // Sign out and redirect
+      await signOut()
       router.push("/login")
     } catch (error: any) {
       setError(error.message)

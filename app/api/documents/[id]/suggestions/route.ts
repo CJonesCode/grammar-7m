@@ -1,31 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
-import { analyzeTextWithAI } from "@/lib/openai"
+import { supabase } from "@/lib/supabase"
 import { generateSuggestions } from "@/lib/grammar"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  console.log("Suggestions API called for document:", params.id)
-
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
-    console.log("Auth check:", { user: !!user, error: authError?.message })
-
     if (authError || !user) {
-      console.log("Unauthorized access attempt")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const body = await request.json()
-    const { content, useAI = false } = body
-
-    console.log("Request body:", { contentLength: content?.length, useAI })
+    const { content } = body
 
     if (!content) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 })
@@ -39,32 +29,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .eq("user_id", user.id)
       .single()
 
-    console.log("Document check:", { found: !!document, error: docError?.message })
-
     if (docError || !document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    let suggestions = []
-
-    if (useAI && process.env.OPENAI_API_KEY) {
-      console.log("Using AI for suggestions, API key present:", !!process.env.OPENAI_API_KEY)
-      try {
-        suggestions = await analyzeTextWithAI(content)
-        console.log("AI suggestions generated:", suggestions.length)
-      } catch (aiError) {
-        console.error("AI analysis failed:", aiError)
-        suggestions = generateSuggestions(content)
-        console.log("Fallback to mock suggestions:", suggestions.length)
-      }
-    } else {
-      console.log("Using mock suggestions, AI disabled or no API key")
-      suggestions = generateSuggestions(content)
-    }
+    // Generate mock suggestions using the grammar library
+    const suggestions = generateSuggestions(content)
 
     // Store suggestions in database
     if (suggestions.length > 0) {
-      const suggestionRecords = suggestions.map((suggestion, index) => ({
+      const suggestionRecords = suggestions.map((suggestion) => ({
         document_id: params.id,
         start_index: suggestion.startIndex,
         end_index: suggestion.endIndex,
@@ -86,8 +60,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
       if (insertError) {
         console.error("Error inserting suggestions:", insertError)
-      } else {
-        console.log("Suggestions stored in database:", suggestionRecords.length)
       }
     }
 
@@ -100,13 +72,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

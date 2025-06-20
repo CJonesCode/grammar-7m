@@ -3,9 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
 import { generateSuggestions, type GrammarSuggestion } from "@/lib/grammar"
-import { calculateReadability, getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
+import { getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Save, BarChart3 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { VersionHistoryDrawer } from "@/components/version-history-drawer"
+import { AutosaveSpinner } from "@/components/autosave-spinner"
 
 // Avoid NaN when the score hasn't been calculated yet
 function safeRound(value: number | null | undefined) {
@@ -27,6 +27,8 @@ interface Document {
   last_edited_at: string
 }
 
+const AUTOSAVE_DELAY = 2000 // 2 seconds
+
 export default function EditorPage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -36,9 +38,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [readabilityScore, setReadabilityScore] = useState<ReadabilityScore | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [analyzingAI, setAnalyzingAI] = useState(false)
   const [error, setError] = useState("")
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [autosaveActive, setAutosaveActive] = useState(false)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -56,9 +58,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const fetchDocument = async () => {
     try {
-      const { data, error } = await supabase.from("documents").select("*").eq("id", params.id).single()
+      const response = await fetch(`/api/documents/${params.id}`)
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to fetch document")
+      }
+
+      const { document: data } = await response.json()
 
       setDocument(data)
       setContent(data.content)
@@ -82,8 +88,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
 
     try {
-      setAnalyzingAI(true)
-      // Always call API route for AI suggestions
       const response = await fetch(`/api/documents/${params.id}/suggestions`, {
         method: "POST",
         headers: {
@@ -91,7 +95,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         },
         body: JSON.stringify({
           content: text,
-          useAI: true,
         }),
       })
 
@@ -99,17 +102,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
       } else {
-        console.error("AI suggestions API failed, falling back to mock")
+        // Fallback to client-side suggestions
         const mockSuggestions = generateSuggestions(text)
         setSuggestions(mockSuggestions)
       }
     } catch (error) {
-      console.error("Error generating suggestions:", error)
-      // Fallback to mock suggestions
+      // Fallback to client-side suggestions
       const mockSuggestions = generateSuggestions(text)
       setSuggestions(mockSuggestions)
-    } finally {
-      setAnalyzingAI(false)
     }
   }
 
@@ -119,29 +119,37 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
       setSaving(true)
       try {
-        const newReadabilityScore = calculateReadability(newContent)
-
-        const { error } = await supabase
-          .from("documents")
-          .update({
+        // Update document via API
+        const response = await fetch(`/api/documents/${document.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
             content: newContent,
-            readability_score: newReadabilityScore,
-            last_edited_at: new Date().toISOString(),
-          })
-          .eq("id", document.id)
+          }),
+        })
 
-        if (error) throw error
+        if (!response.ok) {
+          throw new Error("Failed to save document")
+        }
+
+        const { document: updatedDoc } = await response.json()
+        setReadabilityScore(updatedDoc.readability_score)
 
         // Create version snapshot if requested
         if (shouldCreateVersion) {
-          await supabase.from("document_versions").insert({
-            document_id: document.id,
-            content_snapshot: newContent,
-            readability_score: newReadabilityScore,
+          await fetch(`/api/documents/${document.id}/versions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              content: newContent,
+            }),
           })
         }
 
-        setReadabilityScore(newReadabilityScore)
         setLastSaved(new Date())
       } catch (error: any) {
         setError(error.message)
@@ -160,11 +168,19 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       clearTimeout(saveTimeoutRef.current)
     }
 
+    // Start autosave countdown
+    setAutosaveActive(true)
+
     // Debounced save and suggestion generation
     saveTimeoutRef.current = setTimeout(() => {
+      setAutosaveActive(false)
       saveDocument(newContent, true)
       generateSuggestionsForContent(newContent)
-    }, 2000) // Save after 2 seconds of inactivity
+    }, AUTOSAVE_DELAY)
+  }
+
+  const handleAutosaveComplete = () => {
+    setAutosaveActive(false)
   }
 
   const applySuggestion = (suggestion: GrammarSuggestion) => {
@@ -194,10 +210,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     handleContentChange(versionContent)
   }
 
-  const handleManualAnalysis = () => {
-    if (content.trim()) {
-      generateSuggestionsForContent(content)
+  const handleManualSave = () => {
+    // Cancel autosave and save immediately
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
     }
+    setAutosaveActive(false)
+    saveDocument(content, true)
   }
 
   if (authLoading || loading) {
@@ -225,22 +244,26 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-baseline space-x-4">
               <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">{document.title}</h1>
-              {saving && <span className="text-sm text-gray-500">Saving...</span>}
-              {analyzingAI && <span className="text-sm text-blue-600">AI analyzing...</span>}
-              {lastSaved && !saving && !analyzingAI && (
-                <span className="text-sm text-gray-500">Saved {lastSaved.toLocaleTimeString()}</span>
-              )}
+
+              {/* Status indicators */}
+              <div className="flex items-baseline space-x-3">
+                <AutosaveSpinner
+                  isActive={autosaveActive}
+                  duration={AUTOSAVE_DELAY}
+                  onComplete={handleAutosaveComplete}
+                />
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
-              <Button variant="outline" size="sm" onClick={() => saveDocument(content, true)} disabled={saving}>
+              <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
-                Save
+                Save Now
               </Button>
             </div>
           </div>
@@ -316,16 +339,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             {/* Suggestions */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">
-                  Suggestions ({suggestions.length})
-                  {analyzingAI && <span className="ml-2 text-blue-600">Analyzing...</span>}
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Suggestions ({suggestions.length})</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {suggestions.length === 0 ? (
-                  <p className="text-sm text-gray-600">
-                    {analyzingAI ? "AI is analyzing your text..." : "No suggestions found. Great job!"}
-                  </p>
+                  <p className="text-sm text-gray-600">No suggestions found. Great job!</p>
                 ) : (
                   suggestions.slice(0, 10).map((suggestion) => (
                     <div key={suggestion.id} className="border rounded-lg p-3 space-y-2">

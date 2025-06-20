@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
+// Remove direct supabase import
+// import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -33,14 +34,14 @@ export function VersionHistoryDrawer({ documentId, onRestoreVersion }: VersionHi
     setLoading(true)
     setError("")
     try {
-      const { data, error } = await supabase
-        .from("document_versions")
-        .select("*")
-        .eq("document_id", documentId)
-        .order("created_at", { ascending: false })
-        .limit(20)
+      // Use fetch API instead of direct supabase client
+      const response = await fetch(`/api/documents/${documentId}/versions`)
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to fetch versions")
+      }
+
+      const { versions: data } = await response.json()
       setVersions(data || [])
     } catch (error: any) {
       setError(error.message)
