@@ -1,14 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 import { generateSuggestions } from "@/lib/grammar"
-import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = await cookies()
-    const supabase = await createServerSupabaseClient(cookieStore)
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
@@ -76,10 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = await cookies()
-    const supabase = await createServerSupabaseClient(cookieStore)
-
-    // Check authentication
+    // Check authentication using the singleton server client
     const {
       data: { user },
       error: authError,
