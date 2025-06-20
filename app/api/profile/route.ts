@@ -1,9 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createServerSupabaseClient } from "@/lib/supabase"
+import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,
@@ -28,7 +32,10 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,
@@ -61,7 +68,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,

@@ -1,10 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createServerSupabaseClient } from "@/lib/supabase"
 import { calculateReadability } from "@/lib/readability"
+import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,
@@ -34,7 +38,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,
@@ -76,7 +83,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check authentication using the singleton server client
+    const cookieStore = await cookies()
+    const supabase = await createServerSupabaseClient(cookieStore)
+
+    // Check authentication
     const {
       data: { user },
       error: authError,
