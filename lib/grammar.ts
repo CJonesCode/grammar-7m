@@ -56,7 +56,15 @@ function createSpellingSuggestion(word: string): string | null {
   didYouMean.threshold = 0.4
   didYouMean.caseSensitive = false
   didYouMean.returnFirstMatch = true
-  const suggestion = didYouMean(word.toLowerCase(), wordList as string[])
+
+  // Prefer candidates sharing the same two-letter prefix, which helps pick logical suggestions like
+  // "problems" for "porblems" rather than unrelated words that merely have the same edit distance.
+  const lower = word.toLowerCase()
+  const prefix = lower.slice(0, 2)
+
+  const narrowed = (wordList as string[]).filter((w) => w.startsWith(prefix))
+
+  const suggestion = didYouMean(lower, narrowed.length > 0 ? narrowed : (wordList as string[]))
   if (!suggestion) return null
   return suggestion.toLowerCase() === word.toLowerCase() ? null : suggestion
 }
