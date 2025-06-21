@@ -56,7 +56,9 @@ function createSpellingSuggestion(word: string): string | null {
   didYouMean.threshold = 0.4
   didYouMean.caseSensitive = false
   didYouMean.returnFirstMatch = true
-  return didYouMean(word.toLowerCase(), wordList as string[])
+  const suggestion = didYouMean(word.toLowerCase(), wordList as string[])
+  if (!suggestion) return null
+  return suggestion.toLowerCase() === word.toLowerCase() ? null : suggestion
 }
 
 export function generateSuggestions(text: string): GrammarSuggestion[] {
@@ -82,22 +84,19 @@ export function generateSuggestions(text: string): GrammarSuggestion[] {
   let match: RegExpExecArray | null
   while ((match = WORD_REGEX.exec(text)) !== null) {
     const original = match[0]
-    // Skip very short tokens (e.g. 1-2 letters) for noise reduction
     if (original.length < 3) continue
 
-    const lower = original.toLowerCase()
-    if (!dictionary.has(lower)) {
-      const suggestionWord = createSpellingSuggestion(original)
+    const suggestionWord = createSpellingSuggestion(original)
+
+    if (suggestionWord) {
       suggestions.push({
         id: `spelling-${match.index}-${Date.now()}`,
         startIndex: match.index,
         endIndex: match.index + original.length,
         type: "spelling",
         originalText: original,
-        suggestedText: suggestionWord || original,
-        message: suggestionWord
-          ? `Spelling: "${original}" → "${suggestionWord}"`
-          : `Possible spelling error: "${original}"`,
+        suggestedText: suggestionWord,
+        message: `Spelling: "${original}" → "${suggestionWord}"`,
       })
     }
   }
