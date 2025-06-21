@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { calculateReadability } from "@/lib/readability"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
+
     // Check authentication using the singleton server client
     const {
       data: { user },
@@ -34,6 +37,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
+
     // Check authentication using the singleton server client
     const {
       data: { user },
@@ -76,6 +81,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
+
     // Check authentication using the singleton server client
     const {
       data: { user },

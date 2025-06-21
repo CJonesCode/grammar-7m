@@ -1,13 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { calculateReadability } from "@/lib/readability"
 import { hashContent, shouldCreateVersion } from "@/lib/version-utils"
 import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = await cookies()
-    const supabase = await createServerSupabaseClient(cookieStore)
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Check authentication
     const {
@@ -46,8 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const cookieStore = await cookies()
-    const supabase = await createServerSupabaseClient(cookieStore)
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Check authentication
     const {

@@ -1,10 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { generateSuggestions } from "@/lib/grammar"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check authentication using the singleton server client
+    const supabase = createRouteHandlerClient({ cookies })
+
+    // Check authentication using the route handler client
     const {
       data: { user },
       error: authError,
@@ -72,7 +75,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Check authentication using the singleton server client
+    const supabase = createRouteHandlerClient({ cookies })
+    // Check authentication using the route handler client
     const {
       data: { user },
       error: authError,
