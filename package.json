@@ -62,9 +62,7 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "an-array-of-english-words": "^2.0.0",
-    "didyoumean": "^1.2.2",
-    "nspell": "^2.1.5",
-    "dictionary-en": "^4.0.0"
+    "didyoumean": "^1.2.2"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -1,5 +1,5 @@
-import nspell, { type NSpell } from "nspell"
-import loadDictionary from "dictionary-en"
+import didYouMean from "didyoumean"
+import wordList from "an-array-of-english-words"
 
 export interface GrammarSuggestion {
   id: string
@@ -45,29 +45,20 @@ const grammarRules = [
   },
 ]
 
-// Regex to capture words
+// Build a Set for O(1) look-ups.  This is done once per session and cached in the module scope.
+const dictionary = new Set<string>(wordList as string[])
+
+// Utility to test if a token is a valid word (consists of letters / apostrophes only)
 const WORD_REGEX = /[a-zA-Z']+/g
 
-// nspell instance loads asynchronously; we keep it in module scope
-let spellChecker: NSpell | null = null
-
-// Kick off dictionary loading (runs once when module is imported)
-if (typeof window !== "undefined") {
-  // loadDictionary uses callback style
-  loadDictionary((err: any, dict: any) => {
-    if (!err) {
-      spellChecker = nspell(dict as any)
-    }
-  })
-}
-
+// Generates spelling suggestions for a single misspelled word
 function createSpellingSuggestion(word: string): string | null {
-  if (!spellChecker) return null
-  if (spellChecker.correct(word)) return null
-  const suggestions = spellChecker.suggest(word)
-  if (!suggestions || suggestions.length === 0) return null
-  const candidate = suggestions[0]
-  return candidate.toLowerCase() === word.toLowerCase() ? null : candidate
+  didYouMean.threshold = 0.4
+  didYouMean.caseSensitive = false
+  didYouMean.returnFirstMatch = true
+  const suggestion = didYouMean(word.toLowerCase(), wordList as string[])
+  if (!suggestion) return null
+  return suggestion.toLowerCase() === word.toLowerCase() ? null : suggestion
 }
 
 export function generateSuggestions(text: string): GrammarSuggestion[] {
@@ -89,11 +80,14 @@ export function generateSuggestions(text: string): GrammarSuggestion[] {
     }
   })
 
-  // 2. Spell-checking with nspell (once dictionary is ready)
+  // 2. Spell-checking similar to Chrome spellchecker
   let match: RegExpExecArray | null
   while ((match = WORD_REGEX.exec(text)) !== null) {
     const original = match[0]
     if (original.length < 3) continue
+
+    // If the word is recognised, skip to avoid false positives
+    if (dictionary.has(original.toLowerCase())) continue
 
     const suggestionWord = createSpellingSuggestion(original)
 
