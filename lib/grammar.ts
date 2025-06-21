@@ -1,3 +1,6 @@
+import didYouMean from "didyoumean"
+import wordList from "an-array-of-english-words"
+
 export interface GrammarSuggestion {
   id: string
   startIndex: number
@@ -42,9 +45,24 @@ const grammarRules = [
   },
 ]
 
+// Build a Set for O(1) look-ups.  This is done once per session and cached in the module scope.
+const dictionary = new Set<string>(wordList as string[])
+
+// Utility to test if a token is a valid word (consists of letters / apostrophes only)
+const WORD_REGEX = /[a-zA-Z']+/g
+
+// Generates spelling suggestions for a single misspelled word
+function createSpellingSuggestion(word: string): string | null {
+  didYouMean.threshold = 0.4
+  didYouMean.caseSensitive = false
+  didYouMean.returnFirstMatch = true
+  return didYouMean(word.toLowerCase(), wordList as string[])
+}
+
 export function generateSuggestions(text: string): GrammarSuggestion[] {
   const suggestions: GrammarSuggestion[] = []
 
+  // 1. Static grammar/style rules (existing)
   grammarRules.forEach((rule) => {
     let match
     while ((match = rule.pattern.exec(text)) !== null) {
@@ -60,5 +78,30 @@ export function generateSuggestions(text: string): GrammarSuggestion[] {
     }
   })
 
+  // 2. Spell-checking similar to Chrome spellchecker
+  let match: RegExpExecArray | null
+  while ((match = WORD_REGEX.exec(text)) !== null) {
+    const original = match[0]
+    // Skip very short tokens (e.g. 1-2 letters) for noise reduction
+    if (original.length < 3) continue
+
+    const lower = original.toLowerCase()
+    if (!dictionary.has(lower)) {
+      const suggestionWord = createSpellingSuggestion(original)
+      suggestions.push({
+        id: `spelling-${match.index}-${Date.now()}`,
+        startIndex: match.index,
+        endIndex: match.index + original.length,
+        type: "spelling",
+        originalText: original,
+        suggestedText: suggestionWord || original,
+        message: suggestionWord
+          ? `Spelling: "${original}" → "${suggestionWord}"`
+          : `Possible spelling error: "${original}"`,
+      })
+    }
+  }
+
+  // Ensure deterministic ordering
   return suggestions.sort((a, b) => a.startIndex - b.startIndex)
 }
