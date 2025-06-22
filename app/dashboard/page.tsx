@@ -156,10 +156,15 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Welcome, {user?.email}</span>
-              <Button variant="ghost" size="sm" onClick={() => router.push("/settings")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/settings")}
+                aria-label="Settings"
+              >
                 <Settings className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={signOut}>
+              <Button variant="ghost" size="sm" onClick={signOut} aria-label="Sign out">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -257,6 +262,7 @@ export default function DashboardPage() {
                     e.stopPropagation()
                     deleteDocument(doc.id, doc.title)
                   }}
+                  aria-label={`Delete document ${doc.title}`}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

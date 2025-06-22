@@ -245,7 +245,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-baseline space-x-4">
-              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/dashboard")}
+                aria-label="Back to dashboard"
+              >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">{document.title}</h1>

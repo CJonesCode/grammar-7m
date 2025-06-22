@@ -20,7 +20,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <main id="main-content" className="min-h-screen focus:outline-none focus-visible:ring-0">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   )
