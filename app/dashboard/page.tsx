@@ -55,7 +55,6 @@ export default function DashboardPage() {
       // Set up periodic session refresh every 30 minutes
       const refreshInterval = setInterval(async () => {
         try {
-          console.log("🔄 Dashboard: Periodic session refresh...")
           await refreshSession()
         } catch (error) {
           console.error("❌ Dashboard: Periodic refresh failed:", error)
@@ -67,9 +66,6 @@ export default function DashboardPage() {
   }, [user, authLoading, router, refreshSession])
 
   const fetchDocuments = useCallback(async () => {
-    const startTime = performance.now()
-    console.log("🔄 Dashboard: Starting fetchDocuments")
-    
     try {
       const response = await fetch("/api/documents", {
         method: "GET",
@@ -79,15 +75,11 @@ export default function DashboardPage() {
         // Reduced timeout to prevent hanging requests
         signal: AbortSignal.timeout(5000), // 5 second timeout (reduced from 10)
       })
-      const responseTime = performance.now()
-      console.log(`⏱️ Dashboard: API response received in ${responseTime - startTime}ms`)
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.log("❌ Dashboard: Authentication error, attempting session refresh...")
           try {
             await refreshSession()
-            console.log("🔄 Dashboard: Session refreshed, retrying fetch...")
             // Retry the fetch after session refresh
             const retryResponse = await fetch("/api/documents", {
               method: "GET",
@@ -98,7 +90,6 @@ export default function DashboardPage() {
             })
             
             if (!retryResponse.ok) {
-              console.log("❌ Dashboard: Still unauthorized after refresh, redirecting to login")
               window.location.href = '/login'
               return
             }
@@ -116,21 +107,14 @@ export default function DashboardPage() {
       }
 
       const { documents } = await response.json()
-      const parseTime = performance.now()
-      console.log(`📊 Dashboard: JSON parsed in ${parseTime - responseTime}ms`)
-      console.log(`📄 Dashboard: Received ${documents?.length || 0} documents`)
-      console.log("📋 Dashboard: Documents data:", JSON.stringify(documents, null, 2))
       
       setDocuments(documents || [])
-      const totalTime = performance.now()
-      console.log(`✅ Dashboard: Total fetch time ${totalTime - startTime}ms`)
     } catch (error: any) {
       console.error("❌ Dashboard: Fetch error:", error)
       setError(error.message)
       
       // Retry once after 2 seconds for network errors
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.log("🔄 Dashboard: Network error, retrying in 2 seconds...")
         setTimeout(() => {
           fetchDocuments()
         }, 2000)

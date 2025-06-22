@@ -49,30 +49,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log("🔄 Auth: Initializing authentication...")
-        
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
           console.error("❌ Auth: Error getting session:", error)
         } else if (session?.user) {
-          console.log("✅ Auth: Found existing session for:", session.user.email)
           setUser(session.user)
-        } else {
-          console.log("ℹ️ Auth: No existing session found")
         }
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            console.log(`🔄 Auth: Auth state changed - ${event}`, session?.user?.email)
-            
             if (event === 'SIGNED_IN' && session?.user) {
               setUser(session.user)
             } else if (event === 'SIGNED_OUT') {
               setUser(null)
             } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-              console.log("🔄 Auth: Token refreshed for:", session.user.email)
               setUser(session.user)
             }
           }
@@ -117,14 +109,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSession = async () => {
     try {
-      console.log("🔄 Auth: Refreshing session...")
       const { data: { session }, error } = await supabase.auth.refreshSession()
       if (error) {
         console.error("❌ Auth: Error refreshing session:", error)
         throw error
       }
       if (session?.user) {
-        console.log("✅ Auth: Session refreshed for:", session.user.email)
         setUser(session.user)
       }
     } catch (error) {

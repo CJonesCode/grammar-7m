@@ -2,9 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const startTime = performance.now()
-  console.log(`🔄 Middleware: Processing ${request.method} ${request.nextUrl.pathname}`)
-
   try {
     // Create a response object that we can modify
     let response = NextResponse.next({
@@ -43,20 +40,15 @@ export async function middleware(request: NextRequest) {
 
     // Get user session
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    const authTime = performance.now()
-    console.log(`⏱️ Middleware: Auth check completed in ${authTime - startTime}ms`)
 
     if (authError) {
-      console.log(`⚠️ Middleware: Auth error for ${request.nextUrl.pathname}:`, authError.message)
+      console.error(`⚠️ Middleware: Auth error for ${request.nextUrl.pathname}:`, authError.message)
     }
 
     // Add user ID to headers for API routes
     if (user) {
-      console.log(`✅ Middleware: User authenticated: ${user.email} (${user.id})`)
       response.headers.set('x-supa-user', user.id)
     } else {
-      console.log(`❌ Middleware: No user found for ${request.nextUrl.pathname}`)
-      
       // Redirect to login for protected routes
       const protectedRoutes = ['/dashboard', '/editor', '/settings']
       const isProtectedRoute = protectedRoutes.some(route => 
@@ -64,13 +56,9 @@ export async function middleware(request: NextRequest) {
       )
       
       if (isProtectedRoute) {
-        console.log(`🔄 Middleware: Redirecting to login from ${request.nextUrl.pathname}`)
         return NextResponse.redirect(new URL('/login', request.url))
       }
     }
-
-    const totalTime = performance.now()
-    console.log(`✅ Middleware: Total processing time ${totalTime - startTime}ms`)
     
     return response
   } catch (error) {

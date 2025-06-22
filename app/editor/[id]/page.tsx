@@ -61,36 +61,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [user, authLoading, router, params.id])
 
   const fetchDocument = async () => {
-    const startTime = performance.now()
-    console.log("🔄 Editor: Starting fetchDocument for ID:", params.id)
-    
     try {
       const response = await fetch(`/api/documents/${params.id}`)
-      const responseTime = performance.now()
-      console.log(`⏱️ Editor: API response received in ${responseTime - startTime}ms`)
 
       if (!response.ok) {
         throw new Error("Failed to fetch document")
       }
 
       const { document: data } = await response.json()
-      const parseTime = performance.now()
-      console.log(`📊 Editor: JSON parsed in ${parseTime - responseTime}ms`)
-      console.log(`📄 Editor: Document loaded - Title: "${data.title}", Content length: ${data.content?.length || 0} chars`)
-      console.log("📋 Editor: Document data:", JSON.stringify({
-        id: data.id,
-        title: data.title,
-        contentLength: data.content?.length || 0,
-        readabilityScore: data.readability_score,
-        lastEditedAt: data.last_edited_at
-      }, null, 2))
 
       setDocument(data)
       setContent(data.content)
       setReadabilityScore(data.readability_score)
-
-      const totalTime = performance.now()
-      console.log(`✅ Editor: Total document load time ${totalTime - startTime}ms`)
 
       // Don't generate suggestions immediately - wait for user interaction
       // This improves initial load time
@@ -107,9 +89,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       setSuggestions([])
       return
     }
-
-    const startTime = performance.now()
-    console.log("🔄 Editor: Starting suggestions generation for", text.length, "chars")
     
     setSuggestionsLoading(true)
     
@@ -123,37 +102,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           content: text,
         }),
       })
-      const responseTime = performance.now()
-      console.log(`⏱️ Editor: Suggestions API response in ${responseTime - startTime}ms`)
 
       if (response.ok) {
         const data = await response.json()
-        const parseTime = performance.now()
-        console.log(`📊 Editor: Suggestions JSON parsed in ${parseTime - responseTime}ms`)
-        console.log(`💡 Editor: Generated ${data.suggestions?.length || 0} suggestions`)
-        console.log("📋 Editor: Suggestions data:", JSON.stringify(data.suggestions, null, 2))
         setSuggestions(data.suggestions || [])
       } else {
-        console.log("⚠️ Editor: Suggestions API failed, using client-side fallback")
         const mockSuggestions = generateSuggestions(text)
         setSuggestions(mockSuggestions)
       }
     } catch (error) {
-      console.log("⚠️ Editor: Suggestions API error, using client-side fallback:", error)
       const mockSuggestions = generateSuggestions(text)
       setSuggestions(mockSuggestions)
     } finally {
       setSuggestionsLoading(false)
-      const totalTime = performance.now()
-      console.log(`✅ Editor: Total suggestions time ${totalTime - startTime}ms`)
     }
   }
 
   const saveDocument = useCallback(async (content: string, title: string = document?.title || "Untitled Document") => {
     if (!document?.id) return
-    
-    const startTime = performance.now()
-    console.log(`🔄 Editor: Starting saveDocument for ${content.length} chars`)
     
     try {
       const response = await fetch(`/api/documents/${document.id}/edit`, {
@@ -164,17 +130,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         body: JSON.stringify({ content, title }),
       })
 
-      const responseTime = performance.now()
-      console.log(`⏱️ Editor: Save API response in ${responseTime - startTime}ms`)
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
-      const parseTime = performance.now()
-      console.log(`📊 Editor: Save JSON parsed in ${parseTime - responseTime}ms`)
-      console.log("📋 Editor: Save response data:", JSON.stringify(data, null, 2))
 
       // Update local document state
       setDocument(prev => prev ? {
@@ -184,9 +144,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         readabilityScore: data.readabilityScore,
         lastEditedAt: new Date().toISOString()
       } : null)
-
-      const totalTime = performance.now()
-      console.log(`✅ Editor: Total save time ${totalTime - startTime}ms`)
     } catch (error) {
       console.error('Error saving document:', error)
       toast({

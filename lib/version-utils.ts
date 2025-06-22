@@ -32,7 +32,6 @@ export async function shouldCreateVersion(
 
     return !data || data.length === 0
   } catch (error) {
-    console.error("Error checking version:", error)
     return true // Default to creating version if check fails
   }
 }
@@ -57,13 +56,11 @@ export async function createVersion(
       })
 
     if (error) {
-      console.error("Error creating version:", error)
       return false
     }
 
     return true
   } catch (error) {
-    console.error("Error creating version:", error)
     return false
   }
 }

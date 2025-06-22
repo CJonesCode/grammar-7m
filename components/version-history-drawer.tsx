@@ -31,35 +31,19 @@ export function VersionHistoryDrawer({ documentId, onRestoreVersion }: VersionHi
   const [isOpen, setIsOpen] = useState(false)
 
   const fetchVersions = async () => {
-    const startTime = performance.now()
-    console.log("🔄 VersionHistory: Starting fetchVersions for document:", documentId)
-    
     setLoading(true)
     setError("")
     try {
       // Use fetch API instead of direct supabase client
       const response = await fetch(`/api/documents/${documentId}/versions`)
-      const responseTime = performance.now()
-      console.log(`⏱️ VersionHistory: API response in ${responseTime - startTime}ms`)
 
       if (!response.ok) {
         throw new Error("Failed to fetch versions")
       }
 
       const { versions: data } = await response.json()
-      const parseTime = performance.now()
-      console.log(`📊 VersionHistory: JSON parsed in ${parseTime - responseTime}ms`)
-      console.log(`📄 VersionHistory: Received ${data?.length || 0} versions`)
-      console.log("📋 VersionHistory: Versions data:", JSON.stringify(data?.map((v: DocumentVersion) => ({
-        id: v.id,
-        createdAt: v.created_at,
-        contentLength: v.content_snapshot?.length || 0,
-        readabilityScore: v.readability_score
-      })), null, 2))
       
       setVersions(data || [])
-      const totalTime = performance.now()
-      console.log(`✅ VersionHistory: Total fetch time ${totalTime - startTime}ms`)
     } catch (error: any) {
       console.error("❌ VersionHistory: Fetch error:", error)
       setError(error.message)

@@ -25,11 +25,6 @@ class PerformanceMonitor {
     if (this.metrics.length > this.maxMetrics) {
       this.metrics = this.metrics.slice(-this.maxMetrics)
     }
-    
-    // Log slow operations
-    if (duration > 1000) {
-      console.warn(`🐌 Slow operation detected: ${operation} took ${duration}ms`, metadata)
-    }
   }
 
   getAverageTime(operation: string, timeWindowMs: number = 60000): number {
