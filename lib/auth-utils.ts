@@ -27,14 +27,34 @@ export function getUserIdFromCookie(): string | null {
   const tokenCookie = jar.getAll().find((c: { name: string }) => c.name.endsWith("-auth-token"))?.name
   if (!tokenCookie) return null
 
-  const raw = jar.get(tokenCookie)?.value
-  if (!raw) return null
+  const rawEncoded = jar.get(tokenCookie)?.value
+  if (!rawEncoded) return null
+
+  // Cookie is URL-encoded; decode first
+  const decoded = decodeURIComponent(rawEncoded)
+
+  let jwt: string | null = null
+
+  // 1) Newer supabase-js puts the JWT directly in the cookie value (may have an "s:" prefix added by
+  //    cookie-signature).  Detect that quickly.
+  if (decoded.startsWith("ey")) {
+    jwt = decoded
+  }
+
+  // 2) Legacy helpers store a JSON string containing { access_token, refresh_token, ... }
+  if (!jwt) {
+    try {
+      const parsed: SupabaseAuthCookie = JSON.parse(decoded.replace(/^s:/, ""))
+      jwt = parsed.access_token ?? null
+    } catch {
+      /* swallow */
+    }
+  }
+
+  if (!jwt) return null
 
   try {
-    const parsed: SupabaseAuthCookie = JSON.parse(decodeURIComponent(raw))
-    if (!parsed.access_token) return null
-
-    const payload = jwtDecode<JwtPayload>(parsed.access_token)
+    const payload = jwtDecode<JwtPayload>(jwt)
     return payload.sub ?? null
   } catch (err) {
     console.error("Failed to decode supabase auth cookie:", err)
