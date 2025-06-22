@@ -6,7 +6,7 @@ import { createServerSupabase } from "@/lib/supabase-server"
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()

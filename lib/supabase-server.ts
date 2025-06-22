@@ -1,7 +1,7 @@
 import { cookies } from "next/headers"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
-export function createServerSupabase() {
+export async function createServerSupabase() {
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
   const supabaseKey =
@@ -11,10 +11,8 @@ export function createServerSupabase() {
     throw new Error("Supabase environment variables are not set")
   }
 
-  // `cookies()` returns a RequestCookies object in runtime, but its typings in Next 15 are now async (Promise<...>).
-  // Cast to `any` so we can keep a synchronous API expected by `@supabase/ssr` without changing call-sites.
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const cookieStore: any = cookies()
+  // Handle async cookies in Next.js 15
+  const cookieStore = await cookies()
 
   return createServerClient(supabaseUrl, supabaseKey, {
     cookies: {

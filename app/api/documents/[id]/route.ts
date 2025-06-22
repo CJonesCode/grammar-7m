@@ -6,7 +6,7 @@ import { createServerSupabase } from "@/lib/supabase-server"
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -86,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()

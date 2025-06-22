@@ -7,7 +7,7 @@ export const runtime = "edge"
 export async function GET(request: NextRequest) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     let userId = request.headers.get("x-supa-user")
     if (!userId) {

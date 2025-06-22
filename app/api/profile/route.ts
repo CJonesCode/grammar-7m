@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest) {
   const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -74,7 +74,7 @@ export async function DELETE(request: NextRequest) {
   const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let userId = request.headers.get("x-supa-user")
     if (!userId) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()

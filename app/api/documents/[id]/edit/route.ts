@@ -10,7 +10,7 @@ export const runtime = "edge"
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     // Resolve user ID (either via trusted header from middleware or fallback to Supabase Auth API)
     let userId = request.headers.get("x-supa-user")
