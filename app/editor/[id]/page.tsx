@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { VersionHistoryDrawer } from "@/components/version-history-drawer"
 import { AutosaveSpinner } from "@/components/autosave-spinner"
 import { toast } from "@/components/ui/use-toast"
+import { AppHeader } from "@/components/AppHeader"
 
 // Avoid NaN when the score hasn't been calculated yet
 function safeRound(value: number | null | undefined) {
@@ -55,12 +56,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       return
     }
 
-    if (user) {
+    if (user && params.id) {
       fetchDocument()
     }
   }, [user, authLoading, router, params.id])
 
   const fetchDocument = async () => {
+    if (!params.id) return // Do not fetch if id is not available
+
     try {
       const response = await fetch(`/api/documents/${params.id}`)
 
@@ -254,8 +257,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <AppHeader />
+
+      {/* Sub-header for editor controls */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-baseline space-x-4">
@@ -295,136 +300,138 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         </Alert>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Main Editor */}
-          <div className="lg:col-span-3">
-            <Card className="h-[calc(100vh-200px)]">
-              <CardContent className="p-0 h-full">
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  placeholder="Start writing your thesis chapter..."
-                  className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
-                  style={{ fontSize: "16px", lineHeight: "1.6" }}
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Readability Score */}
-            {readabilityScore && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Readability
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-sm">
-                      <span>Reading Ease</span>
-                      <span className="font-medium">{safeRound(readabilityScore.fleschReadingEase)}/100</span>
-                    </div>
-                    {Number.isFinite(readabilityScore.fleschReadingEase) && (
-                      <div className="text-xs text-gray-700">
-                        {getReadabilityLevel(readabilityScore.fleschReadingEase)}
-                      </div>
-                    )}
-                  </div>
-                  <Separator />
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Words</span>
-                      <span>{readabilityScore.wordCount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Sentences</span>
-                      <span>{readabilityScore.sentenceCount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Grade Level</span>
-                      <span>{safeRound(readabilityScore.fleschKincaidGrade)}</span>
-                    </div>
-                  </div>
+      <main>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Main Editor */}
+            <div className="lg:col-span-3">
+              <Card className="h-[calc(100vh-200px)]">
+                <CardContent className="p-0 h-full">
+                  <textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => handleContentChange(e.target.value)}
+                    placeholder="Start writing your thesis chapter..."
+                    className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
+                    style={{ fontSize: "16px", lineHeight: "1.6" }}
+                  />
                 </CardContent>
               </Card>
-            )}
+            </div>
 
-            {/* Suggestions */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">
-                  Suggestions ({suggestions.length})
-                  {suggestionsLoading && (
-                    <span className="ml-2 text-xs text-blue-600">Analyzing...</span>
+            {/* Sidebar */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Readability Score */}
+              {readabilityScore && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center">
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Readability
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm">
+                        <span>Reading Ease</span>
+                        <span className="font-medium">{safeRound(readabilityScore.fleschReadingEase)}/100</span>
+                      </div>
+                      {Number.isFinite(readabilityScore.fleschReadingEase) && (
+                        <div className="text-xs text-gray-700">
+                          {getReadabilityLevel(readabilityScore.fleschReadingEase)}
+                        </div>
+                      )}
+                    </div>
+                    <Separator />
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Words</span>
+                        <span>{readabilityScore.wordCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Sentences</span>
+                        <span>{readabilityScore.sentenceCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Grade Level</span>
+                        <span>{safeRound(readabilityScore.fleschKincaidGrade)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Suggestions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">
+                    Suggestions ({suggestions.length})
+                    {suggestionsLoading && (
+                      <span className="ml-2 text-xs text-blue-600">Analyzing...</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 h-full overflow-y-auto">
+                  {suggestionsLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-sm text-gray-500">Finding suggestions...</p>
+                    </div>
+                  ) : suggestions.length > 0 ? (
+                    <ul className="space-y-3">
+                      {suggestions.map((suggestion) => (
+                        <li key={suggestion.id} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Badge
+                              variant={
+                                suggestion.type === "grammar"
+                                  ? "destructive"
+                                  : suggestion.type === "spelling"
+                                    ? "default"
+                                    : "secondary"
+                              }
+                            >
+                              {suggestion.type}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-700">{suggestion.message}</p>
+                          <div className="space-y-1">
+                            <div className="text-xs text-gray-700">
+                              Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
+                            </div>
+                            <div className="text-xs text-gray-700">
+                              Suggested:{" "}
+                              <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button size="sm" onClick={() => applySuggestion(suggestion)} className="text-xs">
+                              Apply
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => dismissSuggestion(suggestion.id)}
+                              className="text-xs"
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-center">
+                      <p className="text-sm text-gray-500">
+                        Suggestions will appear here as you write.
+                      </p>
+                    </div>
                   )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 h-full overflow-y-auto">
-                {suggestionsLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-sm text-gray-500">Finding suggestions...</p>
-                  </div>
-                ) : suggestions.length > 0 ? (
-                  <ul className="space-y-3">
-                    {suggestions.map((suggestion) => (
-                      <li key={suggestion.id} className="border rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge
-                            variant={
-                              suggestion.type === "grammar"
-                                ? "destructive"
-                                : suggestion.type === "spelling"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                          >
-                            {suggestion.type}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-700">{suggestion.message}</p>
-                        <div className="space-y-1">
-                          <div className="text-xs text-gray-700">
-                            Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
-                          </div>
-                          <div className="text-xs text-gray-700">
-                            Suggested:{" "}
-                            <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button size="sm" onClick={() => applySuggestion(suggestion)} className="text-xs">
-                            Apply
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => dismissSuggestion(suggestion.id)}
-                            className="text-xs"
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <p className="text-sm text-gray-500">
-                      Suggestions will appear here as you write.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
