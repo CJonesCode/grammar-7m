@@ -16,7 +16,7 @@ A **Next.js 15** application that delivers Google-Docs-like editing with instant
 | **UI / Styling** | Tailwind CSS • shadcn/ui (Radix Primitives) | Accessible component library, theming via `ThemeProvider` |
 | **State / Auth** | `@supabase/ssr` + Supabase Auth | Cookie-based auth available in Client, Server, Route Handlers & Middleware |
 | **Database** | Supabase (PostgreSQL 15) | Schema lives in `scripts/`, RLS enforced on every table |
-| **Grammar Engine** | Custom rules + `didyoumean` + `an-array-of-english-words` | Fallback JS engine when cloud service unavailable |
+| **Grammar Engine** | **Harper.js** | Offline, privacy-first grammar checker (Rust/WASM) |
 | **Readability** | In-house Flesch/FK implementation | See `lib/readability.ts` |
 | **Tooling** | pnpm • Typescript 5 • Tailwind-Merge • Sonner (Toast) | Fast DX |
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { generateSuggestions, type GrammarSuggestion } from "@/lib/grammar"
+import { checkTextWithHarper, type GrammarSuggestion } from "@/lib/harper-client"
 import { getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -93,26 +93,30 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSuggestionsLoading(true)
     
     try {
-      const response = await fetch(`/api/documents/${params.id}/suggestions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: text,
-        }),
-      })
+      // Use client-side Harper for grammar checking
+      const harperSuggestions = await checkTextWithHarper(text)
+      setSuggestions(harperSuggestions)
+      
+      // Store suggestions in database via API
+      if (harperSuggestions.length > 0) {
+        const response = await fetch(`/api/documents/${params.id}/suggestions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: text,
+            suggestions: harperSuggestions,
+          }),
+        })
 
-      if (response.ok) {
-        const data = await response.json()
-        setSuggestions(data.suggestions || [])
-      } else {
-        const mockSuggestions = generateSuggestions(text)
-        setSuggestions(mockSuggestions)
+        if (!response.ok) {
+          console.error("❌ Failed to save suggestions to database")
+        }
       }
     } catch (error) {
-      const mockSuggestions = generateSuggestions(text)
-      setSuggestions(mockSuggestions)
+      console.error("❌ Error generating suggestions:", error)
+      setSuggestions([])
     } finally {
       setSuggestionsLoading(false)
     }

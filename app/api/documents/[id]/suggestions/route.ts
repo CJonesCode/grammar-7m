@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { generateSuggestions } from "@/lib/grammar"
 import { startTimer, endTimer } from "@/lib/debug"
 import { createServerSupabase } from "@/lib/supabase-server"
 
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const body = await request.json()
-    const { content } = body
+    const { content, suggestions } = body
 
     if (!content) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 })
@@ -38,12 +37,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    // Generate mock suggestions using the grammar library
-    const suggestions = generateSuggestions(content)
-
-    // Store suggestions in database
-    if (suggestions.length > 0) {
-      const suggestionRecords = suggestions.map((suggestion) => ({
+    // Store suggestions in database (generated on client side)
+    if (suggestions && suggestions.length > 0) {
+      const suggestionRecords = suggestions.map((suggestion: any) => ({
         document_id: params.id,
         start_index: suggestion.startIndex,
         end_index: suggestion.endIndex,
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       }
     }
 
-    return NextResponse.json({ suggestions })
+    return NextResponse.json({ suggestions: suggestions || [] })
   } catch (error) {
     console.error("❌ API: Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -36,5 +36,4 @@ yarn-error.log*
 next-env.d.ts
 
 *.har
-DATABASE_STRUCTURE.md
-scripts/DATABASE_STRUCTURE.md
+/scripts
