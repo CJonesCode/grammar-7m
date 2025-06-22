@@ -70,48 +70,6 @@ function createSpellingSuggestion(word: string): string | null {
 }
 
 export function generateSuggestions(text: string): GrammarSuggestion[] {
-  const suggestions: GrammarSuggestion[] = []
-
-  // 1. Static grammar/style rules (existing)
-  grammarRules.forEach((rule) => {
-    let match
-    while ((match = rule.pattern.exec(text)) !== null) {
-      suggestions.push({
-        id: `${rule.type}-${match.index}-${Date.now()}`,
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
-        type: rule.type,
-        originalText: match[0],
-        suggestedText: rule.replacement,
-        message: rule.message,
-      })
-    }
-  })
-
-  // 2. Spell-checking similar to Chrome spellchecker
-  let match: RegExpExecArray | null
-  while ((match = WORD_REGEX.exec(text)) !== null) {
-    const original = match[0]
-    if (original.length < 3) continue
-
-    // If the word is recognised, skip to avoid false positives
-    if (dictionary.has(original.toLowerCase())) continue
-
-    const suggestionWord = createSpellingSuggestion(original)
-
-    if (suggestionWord) {
-      suggestions.push({
-        id: `spelling-${match.index}-${Date.now()}`,
-        startIndex: match.index,
-        endIndex: match.index + original.length,
-        type: "spelling",
-        originalText: original,
-        suggestedText: suggestionWord,
-        message: `Spelling: "${original}" → "${suggestionWord}"`,
-      })
-    }
-  }
-
-  // Ensure deterministic ordering
-  return suggestions.sort((a, b) => a.startIndex - b.startIndex)
+  // TEMPORARILY DISABLED: Return empty array to test latency without grammar/spell checking
+  return []
 }
