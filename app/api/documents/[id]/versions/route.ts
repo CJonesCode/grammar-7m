@@ -1,18 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { calculateReadability } from "@/lib/readability"
 import { hashContent, shouldCreateVersion } from "@/lib/version-utils"
-import { cookies } from "next/headers"
 import { startTimer, endTimer } from "@/lib/debug"
-import { getUserIdFromCookie } from "@/lib/auth-utils"
+import { createServerSupabase } from "@/lib/supabase-server"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    const userId = getUserIdFromCookie()
-    if (!userId) {
+    const supabase = createServerSupabase()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -24,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         documents!inner(user_id)
       `)
       .eq("document_id", params.id)
-      .eq("documents.user_id", userId)
+      .eq("documents.user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50)
 
@@ -47,10 +44,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    const userId = getUserIdFromCookie()
-    if (!userId) {
+    const supabase = createServerSupabase()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -66,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("documents")
       .select("id")
       .eq("id", params.id)
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .single()
 
     if (docError || !document) {

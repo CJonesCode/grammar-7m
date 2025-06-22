@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createServerSupabase } from "@/lib/supabase-server"
 
 // Simple hash function for content comparison
 export function hashContent(content: string): string {
@@ -18,7 +17,7 @@ export function hashContent(content: string): string {
 // Check if a version with the same content hash already exists
 export async function shouldCreateVersion(documentId: string, content: string): Promise<boolean> {
   const contentHash = hashContent(content)
-  const supabase = createRouteHandlerClient({ cookies })
+  const supabase = createServerSupabase()
 
   try {
     const { data } = await supabase
