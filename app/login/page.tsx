@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -19,8 +19,15 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, user, loading: authLoading } = useAuth()
   const router = useRouter()
+
+  // Redirect to dashboard once the user is set (i.e., after the SIGNED_IN event fires)
+  useEffect(() => {
+    if (user) {
+      router.replace("/dashboard")
+    }
+  }, [user, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,13 +42,21 @@ export default function LoginPage() {
       } else {
         const { error } = await signIn(email, password)
         if (error) throw error
-        router.push("/dashboard")
       }
     } catch (error: any) {
       setError(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  // If the auth state is still loading (checking cookie/session), show a simple splash
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Authenticating...</div>
+      </div>
+    )
   }
 
   return (
