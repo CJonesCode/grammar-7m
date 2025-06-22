@@ -9,17 +9,16 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          // set for current response and forward in request for route handlers
-          request.cookies.set({ name, value, ...options })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options })
-          response.cookies.set({ name, value: "", ...options })
+        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // `RequestCookies` uses object overload
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            request.cookies.set({ name, value, ...options })
+            response.cookies.set(name, value, options)
+          })
         },
       },
     }
