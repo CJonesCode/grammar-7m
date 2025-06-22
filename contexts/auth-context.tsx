@@ -1,16 +1,16 @@
 "use client"
 
-import type React from "react"
-import { createContext, useContext, useEffect, useState, useRef } from "react"
-import type { User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { createContext, useContext, useEffect, useState } from "react"
+import { createBrowserClient } from "@supabase/ssr"
+import { User } from "@supabase/supabase-js"
 
 interface AuthContextType {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: any }>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>
+  signIn: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, fullName: string) => Promise<void>
   signOut: () => Promise<void>
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -18,116 +18,83 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const mounted = useRef(true)
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          storage: {
+            getItem: (key) => {
+              if (typeof window === "undefined") return null
+              return window.localStorage.getItem(key)
+            },
+            setItem: (key, value) => {
+              if (typeof window === "undefined") return
+              window.localStorage.setItem(key, value)
+            },
+            removeItem: (key) => {
+              if (typeof window === "undefined") return
+              window.localStorage.removeItem(key)
+            },
+          },
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+      }
+    )
+  )
 
   useEffect(() => {
-    let authSubscription: any = null
-    let timeoutId: NodeJS.Timeout | null = null
-
     const initializeAuth = async () => {
       try {
-        // Set up auth state listener
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (!mounted.current) return
-
-          setUser(session?.user ?? null)
-          
-          if (session?.user && event === "SIGNED_IN") {
-            await ensureUserProfile(session.user)
-          }
-
-          // Set loading to false for any auth state change
-          setLoading(false)
-          
-          // Clear timeout if it exists
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-            timeoutId = null
-          }
-        })
-
-        authSubscription = subscription
-
-        // Get initial session
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        if (!mounted.current) return
-
-        if (error) {
-          console.error("Error getting session:", error)
-        } else {
-          setUser(session?.user ?? null)
-          if (session?.user) {
-            await ensureUserProfile(session.user)
-          }
-        }
-
-        // Always set loading to false after initial session check
-        setLoading(false)
+        console.log("🔄 Auth: Initializing authentication...")
         
-        // Clear timeout if it exists
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-          timeoutId = null
+        // Get initial session
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error("❌ Auth: Error getting session:", error)
+        } else if (session?.user) {
+          console.log("✅ Auth: Found existing session for:", session.user.email)
+          setUser(session.user)
+        } else {
+          console.log("ℹ️ Auth: No existing session found")
         }
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log(`🔄 Auth: Auth state changed - ${event}`, session?.user?.email)
+            
+            if (event === 'SIGNED_IN' && session?.user) {
+              setUser(session.user)
+            } else if (event === 'SIGNED_OUT') {
+              setUser(null)
+            } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+              console.log("🔄 Auth: Token refreshed for:", session.user.email)
+              setUser(session.user)
+            }
+          }
+        )
+
+        setLoading(false)
+        return () => subscription.unsubscribe()
       } catch (error) {
-        console.error("Error in initializeAuth:", error)
-        if (mounted.current) {
-          setLoading(false)
-        }
+        console.error("❌ Auth: Error initializing auth:", error)
+        setLoading(false)
       }
     }
 
     initializeAuth()
-
-    // Fallback timeout to prevent infinite loading
-    timeoutId = setTimeout(() => {
-      if (mounted.current) {
-        console.warn("Auth initialization timeout - forcing loading to false")
-        setLoading(false)
-      }
-    }, 5000) // 5 second timeout
-
-    return () => {
-      mounted.current = false
-      if (authSubscription) {
-        authSubscription.unsubscribe()
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [])
-
-  const ensureUserProfile = async (user: User) => {
-    try {
-      // Check if user profile exists
-      const { data: existingUser } = await supabase.from("users").select("id").eq("id", user.id).single()
-
-      // If no profile exists, create one
-      if (!existingUser) {
-        await supabase.from("users").insert({
-          id: user.id,
-          email: user.email!,
-          full_name: user.user_metadata?.full_name || "",
-        })
-      }
-    } catch (error) {
-      console.error("Error ensuring user profile:", error)
-    }
-  }
+  }, [supabase])
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    return { error }
+    if (error) throw error
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -140,24 +107,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     })
-
-    return { error }
+    if (error) throw error
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  }
+
+  const refreshSession = async () => {
+    try {
+      console.log("🔄 Auth: Refreshing session...")
+      const { data: { session }, error } = await supabase.auth.refreshSession()
+      if (error) {
+        console.error("❌ Auth: Error refreshing session:", error)
+        throw error
+      }
+      if (session?.user) {
+        console.log("✅ Auth: Session refreshed for:", session.user.email)
+        setUser(session.user)
+      }
+    } catch (error) {
+      console.error("❌ Auth: Failed to refresh session:", error)
+      throw error
+    }
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, refreshSession }}>
       {children}
     </AuthContext.Provider>
   )

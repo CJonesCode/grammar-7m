@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const dbStartTime = performance.now()
     const { data: document, error } = await supabase
       .from("documents")
-      .select("*")
+      .select("id, title, content, readability_score, last_edited_at")
       .eq("id", params.id)
       .eq("user_id", userId)
       .single()
@@ -54,7 +54,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const totalTime = performance.now()
     console.log(`✅ API: Total request time ${totalTime - startTime}ms`)
-    return NextResponse.json({ document })
+    
+    // Add caching headers for better performance
+    const response = NextResponse.json({ document })
+    response.headers.set('Cache-Control', 'private, max-age=60') // Cache for 1 minute
+    return response
   } catch (error) {
     console.error("❌ API: Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

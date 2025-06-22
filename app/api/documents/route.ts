@@ -1,8 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase-server"
 import { startTimer, endTimer } from "@/lib/debug"
-
-export const runtime = "edge"
 
 export async function GET(request: NextRequest) {
   const timer = startTimer()
@@ -28,13 +26,12 @@ export async function GET(request: NextRequest) {
       console.log("✅ API: Got user from session:", user.email)
     }
 
-    // Get documents for the authenticated user
+    // Use the optimized function for better performance
     const dbStartTime = performance.now()
-    const { data: documents, error } = await supabase
-      .from("documents")
-      .select("id, title, readability_score, last_edited_at")
-      .eq("user_id", userId)
-      .order("last_edited_at", { ascending: false })
+    const { data: documents, error } = await supabase.rpc('get_user_documents', {
+      user_uuid: userId,
+      limit_count: 20
+    })
     const dbEndTime = performance.now()
     console.log(`⏱️ API: Database query completed in ${dbEndTime - dbStartTime}ms`)
 
@@ -48,7 +45,14 @@ export async function GET(request: NextRequest) {
     
     const totalTime = performance.now()
     console.log(`✅ API: Total request time ${totalTime - startTime}ms`)
-    return NextResponse.json({ documents })
+    
+    // Enhanced caching headers for better performance
+    const response = NextResponse.json({ documents })
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300') // Cache for 1 minute, stale for 5 minutes
+    response.headers.set('X-Response-Time', `${totalTime - startTime}ms`)
+    response.headers.set('X-Document-Count', `${documents?.length || 0}`)
+    response.headers.set('X-Cache-Status', 'MISS')
+    return response
   } catch (error) {
     console.error("❌ API: Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -34,7 +34,7 @@ interface Document {
 }
 
 export default function DashboardPage() {
-  const { user, signOut, loading: authLoading } = useAuth()
+  const { user, signOut, loading: authLoading, refreshSession } = useAuth()
   const router = useRouter()
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,20 +51,68 @@ export default function DashboardPage() {
 
     if (user) {
       fetchDocuments()
+      
+      // Set up periodic session refresh every 30 minutes
+      const refreshInterval = setInterval(async () => {
+        try {
+          console.log("🔄 Dashboard: Periodic session refresh...")
+          await refreshSession()
+        } catch (error) {
+          console.error("❌ Dashboard: Periodic refresh failed:", error)
+        }
+      }, 30 * 60 * 1000) // 30 minutes
+      
+      return () => clearInterval(refreshInterval)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, refreshSession])
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     const startTime = performance.now()
     console.log("🔄 Dashboard: Starting fetchDocuments")
     
     try {
-      const response = await fetch("/api/documents")
+      const response = await fetch("/api/documents", {
+        method: "GET",
+        headers: {
+          'Cache-Control': 'max-age=60', // Cache for 1 minute
+        },
+        // Reduced timeout to prevent hanging requests
+        signal: AbortSignal.timeout(5000), // 5 second timeout (reduced from 10)
+      })
       const responseTime = performance.now()
       console.log(`⏱️ Dashboard: API response received in ${responseTime - startTime}ms`)
 
       if (!response.ok) {
-        throw new Error("Failed to fetch documents")
+        if (response.status === 401) {
+          console.log("❌ Dashboard: Authentication error, attempting session refresh...")
+          try {
+            await refreshSession()
+            console.log("🔄 Dashboard: Session refreshed, retrying fetch...")
+            // Retry the fetch after session refresh
+            const retryResponse = await fetch("/api/documents", {
+              method: "GET",
+              headers: {
+                'Cache-Control': 'max-age=60',
+              },
+              signal: AbortSignal.timeout(5000),
+            })
+            
+            if (!retryResponse.ok) {
+              console.log("❌ Dashboard: Still unauthorized after refresh, redirecting to login")
+              window.location.href = '/login'
+              return
+            }
+            
+            const { documents } = await retryResponse.json()
+            setDocuments(documents || [])
+            return
+          } catch (refreshError) {
+            console.error("❌ Dashboard: Failed to refresh session:", refreshError)
+            window.location.href = '/login'
+            return
+          }
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const { documents } = await response.json()
@@ -79,10 +127,18 @@ export default function DashboardPage() {
     } catch (error: any) {
       console.error("❌ Dashboard: Fetch error:", error)
       setError(error.message)
+      
+      // Retry once after 2 seconds for network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.log("🔄 Dashboard: Network error, retrying in 2 seconds...")
+        setTimeout(() => {
+          fetchDocuments()
+        }, 2000)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [refreshSession])
 
   const createDocument = async () => {
     if (!newDocTitle.trim()) return
@@ -151,10 +207,51 @@ export default function DashboardPage() {
     return content.trim() ? content.trim().split(/\s+/).length : 0
   }
 
+  // Memoize sorted documents to prevent unnecessary re-renders
+  const sortedDocuments = useMemo(() => {
+    return [...documents].sort((a, b) => 
+      new Date(b.last_edited_at).getTime() - new Date(a.last_edited_at).getTime()
+    )
+  }, [documents])
+
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <h1 className="text-xl font-semibold text-gray-900">Grammar Checker</h1>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Loading skeleton */}
+          <div className="mb-8">
+            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse mb-4"></div>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -244,7 +341,7 @@ export default function DashboardPage() {
               <p className="text-gray-700 mb-4">Create your first document to get started with grammar checking.</p>
             </div>
           ) : (
-            documents.map((doc) => (
+            sortedDocuments.map((doc) => (
               <Card key={doc.id} className="hover:shadow-md transition-shadow relative group">
                 <div className="cursor-pointer" onClick={() => router.push(`/editor/${doc.id}`)}>
                   <CardHeader className="pb-3">

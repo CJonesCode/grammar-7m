@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Remove the documents join data from response
-    const cleanVersions = versions.map(({ documents, ...version }) => version)
+    const cleanVersions = versions.map(({ documents, ...version }: any) => version)
 
     return NextResponse.json({ versions: cleanVersions })
   } catch (error) {
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Check if we should create a new version (avoid duplicates)
-    const shouldCreate = await shouldCreateVersion(params.id, content)
+    const shouldCreate = await shouldCreateVersion(params.id, content, supabase)
     if (!shouldCreate) {
       return NextResponse.json({ message: "Version already exists" })
     }

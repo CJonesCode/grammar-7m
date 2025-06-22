@@ -13,6 +13,7 @@ import { ArrowLeft, Save, BarChart3 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { VersionHistoryDrawer } from "@/components/version-history-drawer"
 import { AutosaveSpinner } from "@/components/autosave-spinner"
+import { toast } from "@/components/ui/use-toast"
 
 // Avoid NaN when the score hasn't been calculated yet
 function safeRound(value: number | null | undefined) {
@@ -148,58 +149,53 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const saveDocument = useCallback(
-    async (newContent: string) => {
-      if (!document) return
+  const saveDocument = useCallback(async (content: string, title: string = document?.title || "Untitled Document") => {
+    if (!document?.id) return
+    
+    const startTime = performance.now()
+    console.log(`🔄 Editor: Starting saveDocument for ${content.length} chars`)
+    
+    try {
+      const response = await fetch(`/api/documents/${document.id}/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content, title }),
+      })
 
-      const startTime = performance.now()
-      console.log("🔄 Editor: Starting saveDocument for", newContent.length, "chars")
-      
-      setSaving(true)
-      try {
-        // Consolidated edit endpoint
-        const response = await fetch(`/api/documents/${document.id}/edit`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            content: newContent,
-          }),
-        })
-        const responseTime = performance.now()
-        console.log(`⏱️ Editor: Save API response in ${responseTime - startTime}ms`)
+      const responseTime = performance.now()
+      console.log(`⏱️ Editor: Save API response in ${responseTime - startTime}ms`)
 
-        if (!response.ok) {
-          throw new Error("Failed to save document")
-        }
-
-        const { document: updatedDoc, suggestions: newSuggestions } = await response.json()
-        const parseTime = performance.now()
-        console.log(`📊 Editor: Save JSON parsed in ${parseTime - responseTime}ms`)
-        console.log("📋 Editor: Save response data:", JSON.stringify({
-          documentId: updatedDoc.id,
-          title: updatedDoc.title,
-          contentLength: updatedDoc.content?.length || 0,
-          suggestionsCount: newSuggestions?.length || 0,
-          readabilityScore: updatedDoc.readability_score
-        }, null, 2))
-        
-        setReadabilityScore(updatedDoc.readability_score)
-        setSuggestions(newSuggestions)
-
-        setLastSaved(new Date())
-        const totalTime = performance.now()
-        console.log(`✅ Editor: Total save time ${totalTime - startTime}ms`)
-      } catch (error: any) {
-        console.error("❌ Editor: Save error:", error)
-        setError(error.message)
-      } finally {
-        setSaving(false)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
-    },
-    [document],
-  )
+
+      const data = await response.json()
+      const parseTime = performance.now()
+      console.log(`📊 Editor: Save JSON parsed in ${parseTime - responseTime}ms`)
+      console.log("📋 Editor: Save response data:", JSON.stringify(data, null, 2))
+
+      // Update local document state
+      setDocument(prev => prev ? {
+        ...prev,
+        title: data.title,
+        content: content,
+        readabilityScore: data.readabilityScore,
+        lastEditedAt: new Date().toISOString()
+      } : null)
+
+      const totalTime = performance.now()
+      console.log(`✅ Editor: Total save time ${totalTime - startTime}ms`)
+    } catch (error) {
+      console.error('Error saving document:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save document",
+        variant: "destructive",
+      })
+    }
+  }, [document?.id, document?.title])
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent)

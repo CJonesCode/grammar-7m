@@ -1,6 +1,10 @@
 import { cookies } from "next/headers"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
+// Simple in-memory cache for Supabase clients
+const clientCache = new Map<string, any>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 export async function createServerSupabase() {
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
@@ -13,8 +17,19 @@ export async function createServerSupabase() {
 
   // Handle async cookies in Next.js 15
   const cookieStore = await cookies()
-
-  return createServerClient(supabaseUrl, supabaseKey, {
+  
+  // Create a cache key based on the session
+  const sessionCookie = cookieStore.get('sb-access-token')?.value || 'no-session'
+  const cacheKey = `supabase-${sessionCookie}`
+  
+  // Check cache first
+  const cached = clientCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.client
+  }
+  
+  // Create new client
+  const client = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
@@ -30,4 +45,20 @@ export async function createServerSupabase() {
       },
     },
   })
+  
+  // Cache the client
+  clientCache.set(cacheKey, {
+    client,
+    timestamp: Date.now()
+  })
+  
+  // Clean up old cache entries
+  const now = Date.now()
+  for (const [key, value] of clientCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      clientCache.delete(key)
+    }
+  }
+  
+  return client
 } 
