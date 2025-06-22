@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login")
+      router.replace("/")
       return
     }
 
@@ -124,7 +124,7 @@ export default function SettingsPage() {
 
       // Sign out and redirect
       await signOut()
-      router.push("/login")
+      router.replace("/")
     } catch (error: any) {
       setError(error.message)
       setDeleting(false)

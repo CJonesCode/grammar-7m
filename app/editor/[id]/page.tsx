@@ -42,12 +42,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [autosaveActive, setAutosaveActive] = useState(false)
 
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login")
+      router.replace("/")
       return
     }
 

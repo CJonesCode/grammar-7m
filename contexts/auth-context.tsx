@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const initialized = useRef(false)
   const mounted = useRef(true)
+  const initialSessionChecked = useRef(false)
 
   useEffect(() => {
     // Prevent double initialization
@@ -49,8 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await ensureUserProfile(session.user)
           }
 
-          // Set loading to false after initial session
-          if (event === "INITIAL_SESSION") {
+          // Set loading to false after initial session is processed
+          if (event === "INITIAL_SESSION" && !initialSessionChecked.current) {
+            initialSessionChecked.current = true
             setLoading(false)
           }
         })
@@ -73,9 +75,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await ensureUserProfile(session.user)
           }
         }
+
+        // If we haven't received INITIAL_SESSION event yet, set loading to false after a timeout
+        if (!initialSessionChecked.current) {
+          setTimeout(() => {
+            if (mounted.current && !initialSessionChecked.current) {
+              initialSessionChecked.current = true
+              setLoading(false)
+            }
+          }, 1000) // 1 second timeout as fallback
+        }
       } catch (error) {
         console.error("Error in initializeAuth:", error)
-      } finally {
         if (mounted.current) {
           setLoading(false)
         }
