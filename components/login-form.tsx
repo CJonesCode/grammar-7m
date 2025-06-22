@@ -28,16 +28,13 @@ export default function LoginForm() {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, fullName)
-        if (error) throw error
+        await signUp(email, password, fullName)
         setError("Check your email for verification link")
       } else {
-        const { error } = await signIn(email, password)
-        if (error) throw error
+        await signIn(email, password)
       }
     } catch (error: any) {
       setError(error.message)
-    } finally {
       setIsProcessing(false)
     }
   }

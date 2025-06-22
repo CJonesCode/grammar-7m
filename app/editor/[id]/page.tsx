@@ -141,9 +141,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         ...prev,
         title: data.title,
         content: content,
-        readabilityScore: data.readabilityScore,
-        lastEditedAt: new Date().toISOString()
+        readability_score: data.readabilityScore,
+        last_edited_at: new Date().toISOString()
       } : null)
+      
+      setReadabilityScore(data.readabilityScore)
+      
     } catch (error) {
       console.error('Error saving document:', error)
       toast({

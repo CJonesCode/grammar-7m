@@ -250,17 +250,17 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold text-gray-900">Ship of Thesis</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user?.email}</span>
+              <span className="text-sm text-gray-500">{user?.full_name || user?.email}</span>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={() => router.push("/settings")}
                 aria-label="Settings"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={signOut} aria-label="Sign out">
-                <LogOut className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
