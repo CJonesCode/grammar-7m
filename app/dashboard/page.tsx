@@ -1,22 +1,24 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { generateSuggestions, type GrammarSuggestion } from "@/lib/grammar"
-import { getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Save, BarChart3 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Plus, FileText, Calendar, LogOut, Settings, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { VersionHistoryDrawer } from "@/components/version-history-drawer"
-import { AutosaveSpinner } from "@/components/autosave-spinner"
-import { toast } from "@/components/ui/use-toast"
-import { AppHeader } from "@/components/AppHeader"
 
-// Avoid NaN when the score hasn't been calculated yet
+// Utility to avoid NaN in the UI
 function safeRound(value: number | null | undefined) {
   return Number.isFinite(value as number) ? Math.round(value as number) : 0
 }
@@ -24,31 +26,22 @@ function safeRound(value: number | null | undefined) {
 interface Document {
   id: string
   title: string
-  content: string
-  readability_score: ReadabilityScore
+  content?: string
   last_edited_at: string
+  created_at: string
+  readability_score: any
+  word_count?: number
 }
 
-const AUTOSAVE_DELAY = 2000 // 2 seconds
-const SUGGESTION_DEBOUNCE = 1000 // 1 second delay before generating suggestions
-
-export default function EditorPage({ params }: { params: { id: string } }) {
-  const { user, loading: authLoading } = useAuth()
+export default function DashboardPage() {
+  const { user, signOut, loading: authLoading, refreshSession } = useAuth()
   const router = useRouter()
-  const [document, setDocument] = useState<Document | null>(null)
-  const [content, setContent] = useState("")
-  const [suggestions, setSuggestions] = useState<GrammarSuggestion[]>([])
-  const [readabilityScore, setReadabilityScore] = useState<ReadabilityScore | null>(null)
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [autosaveActive, setAutosaveActive] = useState(false)
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
-
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [newDocTitle, setNewDocTitle] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -57,184 +50,191 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
 
     if (user) {
-      fetchDocument()
+      fetchDocuments()
+      
+      // Set up periodic session refresh every 30 minutes
+      const refreshInterval = setInterval(async () => {
+        try {
+          await refreshSession()
+        } catch (error) {
+          console.error("❌ Dashboard: Periodic refresh failed:", error)
+        }
+      }, 30 * 60 * 1000) // 30 minutes
+      
+      return () => clearInterval(refreshInterval)
     }
-  }, [user, authLoading, router, params.id])
+  }, [user, authLoading, router, refreshSession])
 
-  const fetchDocument = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
-      const response = await fetch(`/api/documents/${params.id}`)
+      const response = await fetch("/api/documents", {
+        method: "GET",
+        headers: {
+          'Cache-Control': 'max-age=60', // Cache for 1 minute
+        },
+        // Reduced timeout to prevent hanging requests
+        signal: AbortSignal.timeout(5000), // 5 second timeout (reduced from 10)
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to fetch document")
+        if (response.status === 401) {
+          try {
+            await refreshSession()
+            // Retry the fetch after session refresh
+            const retryResponse = await fetch("/api/documents", {
+              method: "GET",
+              headers: {
+                'Cache-Control': 'max-age=60',
+              },
+              signal: AbortSignal.timeout(5000),
+            })
+            
+            if (!retryResponse.ok) {
+              window.location.href = '/login'
+              return
+            }
+            
+            const { documents } = await retryResponse.json()
+            setDocuments(documents || [])
+            return
+          } catch (refreshError) {
+            console.error("❌ Dashboard: Failed to refresh session:", refreshError)
+            window.location.href = '/login'
+            return
+          }
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const { document: data } = await response.json()
-
-      setDocument(data)
-      setContent(data.content)
-      setReadabilityScore(data.readability_score)
-
+      const { documents } = await response.json()
+      
+      setDocuments(documents || [])
     } catch (error: any) {
-      console.error("❌ Editor: Fetch error:", error)
+      console.error("❌ Dashboard: Fetch error:", error)
       setError(error.message)
+      
+      // Retry once after 2 seconds for network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        setTimeout(() => {
+          fetchDocuments()
+        }, 2000)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [refreshSession])
 
-  const generateSuggestionsForContent = async (text: string) => {
-    if (!text.trim()) {
-      setSuggestions([])
-      return
-    }
-    
-    setSuggestionsLoading(true)
-    
+  const createDocument = async () => {
+    if (!newDocTitle.trim()) return
+
+    setIsCreating(true)
     try {
-      const response = await fetch(`/api/documents/${params.id}/suggestions`, {
+      const response = await fetch("/api/documents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          content: text,
+          title: newDocTitle,
+          content: "",
         }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setSuggestions(data.suggestions || [])
-      } else {
-        const mockSuggestions = generateSuggestions(text)
-        setSuggestions(mockSuggestions)
+      if (!response.ok) {
+        throw new Error("Failed to create document")
       }
-    } catch (error) {
-      const mockSuggestions = generateSuggestions(text)
-      setSuggestions(mockSuggestions)
+
+      const { document: data } = await response.json()
+
+      setDocuments([data, ...documents])
+      setNewDocTitle("")
+      setDialogOpen(false)
+      router.push(`/editor/${data.id}`)
+    } catch (error: any) {
+      setError(error.message)
     } finally {
-      setSuggestionsLoading(false)
+      setIsCreating(false)
     }
   }
 
-  const saveDocument = useCallback(async (content: string, title: string = document?.title || "Untitled Document") => {
-    if (!document?.id) return
-    
+  const deleteDocument = async (docId: string, docTitle: string) => {
+    if (!confirm(`Are you sure you want to delete "${docTitle}"? This action cannot be undone.`)) {
+      return
+    }
+
     try {
-      const response = await fetch(`/api/documents/${document.id}/edit`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content, title }),
+      const response = await fetch(`/api/documents/${docId}`, {
+        method: "DELETE",
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error("Failed to delete document")
       }
 
-      const data = await response.json()
-
-      setDocument(prev => prev ? {
-        ...prev,
-        title: data.title,
-        content: content,
-        readability_score: data.readabilityScore,
-        last_edited_at: new Date().toISOString()
-      } : null)
-      
-      setReadabilityScore(data.readabilityScore)
-      
-    } catch (error) {
-      console.error('Error saving document:', error)
-      toast({
-        title: "Error",
-        description: "Failed to save document",
-        variant: "destructive",
-      })
-    }
-  }, [document?.id, document?.title])
-
-  const handleContentChange = (newContent: string) => {
-    setContent(newContent)
-
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current)
-    }
-
-    setAutosaveActive(true)
-
-    saveTimeoutRef.current = setTimeout(() => {
-      setAutosaveActive(false)
-      saveDocument(newContent)
-    }, AUTOSAVE_DELAY)
-
-    suggestionTimeoutRef.current = setTimeout(() => {
-      generateSuggestionsForContent(newContent)
-    }, SUGGESTION_DEBOUNCE)
-  }
-
-  const handleAutosaveComplete = () => {
-    setAutosaveActive(false)
-  }
-
-  const applySuggestion = (suggestion: GrammarSuggestion) => {
-    const newContent =
-      content.slice(0, suggestion.startIndex) + suggestion.suggestedText + content.slice(suggestion.endIndex)
-
-    setContent(newContent)
-    setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id))
-    handleContentChange(newContent)
-
-    if (textareaRef.current) {
-      textareaRef.current.focus()
+      setDocuments(documents.filter((doc) => doc.id !== docId))
+    } catch (error: any) {
+      setError(error.message)
     }
   }
 
-  const dismissSuggestion = (suggestionId: string) => {
-    setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId))
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
   }
 
-  const handleRestoreVersion = (versionContent: string) => {
-    setContent(versionContent)
-    handleContentChange(versionContent)
+  const getWordCount = (content: string) => {
+    return content.trim() ? content.trim().split(/\s+/).length : 0
   }
 
-  const handleManualSave = () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-    saveDocument(content)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-      if (suggestionTimeoutRef.current) {
-        clearTimeout(suggestionTimeoutRef.current)
-      }
-    }
-  }, [])
+  // Memoize sorted documents to prevent unnecessary re-renders
+  const sortedDocuments = useMemo(() => {
+    return [...documents].sort((a, b) => 
+      new Date(b.last_edited_at).getTime() - new Date(a.last_edited_at).getTime()
+    )
+  }, [documents])
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    )
-  }
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <h1 className="text-xl font-semibold text-gray-900">Ship of Thesis</h1>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </header>
 
-  if (!document) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Document not found</h2>
-          <Button onClick={() => router.push("/dashboard")}>Back to Dashboard</Button>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Loading skeleton */}
+          <div className="mb-8">
+            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse mb-4"></div>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -242,174 +242,134 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppHeader />
-
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-baseline space-x-4">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900">Ship of Thesis</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">{user?.full_name || user?.email}</span>
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => router.push("/dashboard")}
-                aria-label="Back to dashboard"
+                size="icon"
+                onClick={() => router.push("/settings")}
+                aria-label="Settings"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </Button>
-              <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">{document.title}</h1>
-              <div className="flex items-baseline space-x-3">
-                <AutosaveSpinner
-                  isActive={autosaveActive}
-                  duration={AUTOSAVE_DELAY}
-                  onComplete={handleAutosaveComplete}
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
-              <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Now
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {error && (
-        <Alert variant="destructive" className="mx-4 mt-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <main>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-3">
-              <Card className="h-[calc(100vh-200px)]">
-                <CardContent className="p-0 h-full">
-                  <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={(e) => handleContentChange(e.target.value)}
-                    placeholder="Start writing your thesis chapter..."
-                    className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
-                    style={{ fontSize: "16px", lineHeight: "1.6" }}
+        {/* Create Document Section */}
+        <div className="mb-8">
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center space-x-2">
+                <Plus className="h-4 w-4" />
+                <span>New Document</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Document</DialogTitle>
+                <DialogDescription>Enter a title for your new document. You can change this later.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Document Title</Label>
+                  <Input
+                    id="title"
+                    value={newDocTitle}
+                    onChange={(e) => setNewDocTitle(e.target.value)}
+                    placeholder="Enter document title..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        createDocument()
+                      }
+                    }}
                   />
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createDocument} disabled={isCreating || !newDocTitle.trim()}>
+                    {isCreating ? "Creating..." : "Create"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-            <div className="lg:col-span-1 space-y-6">
-              {readabilityScore && (
-                <Card>
+        {/* Documents Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sortedDocuments.length === 0 ? (
+            <div className="text-center py-20">
+              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No documents yet</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Get started by creating your first document.
+              </p>
+            </div>
+          ) : (
+            sortedDocuments.map((doc) => (
+              <Card key={doc.id} className="hover:shadow-md transition-shadow relative group">
+                <div className="cursor-pointer" onClick={() => router.push(`/editor/${doc.id}`)}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center">
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      Readability
-                    </CardTitle>
+                    <CardTitle className="text-lg truncate pr-8">{doc.title}</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-sm">
-                        <span>Reading Ease</span>
-                        <span className="font-medium">{safeRound(readabilityScore.fleschReadingEase)}/100</span>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>Last edited: {formatDate(doc.last_edited_at)}</span>
                       </div>
-                      {Number.isFinite(readabilityScore.fleschReadingEase) && (
-                        <div className="text-xs text-gray-700">
-                          {getReadabilityLevel(readabilityScore.fleschReadingEase)}
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-4 w-4" />
+                        <span>
+                          {doc.readability_score?.wordCount || doc.word_count || 0} words
+                        </span>
+                      </div>
+                      {Number.isFinite(doc.readability_score?.fleschReadingEase) && (
+                        <div className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                          Readability: {safeRound(doc.readability_score?.fleschReadingEase)}/100
                         </div>
                       )}
                     </div>
-                    <Separator />
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Words</span>
-                        <span>{readabilityScore.wordCount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sentences</span>
-                        <span>{readabilityScore.sentenceCount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Grade Level</span>
-                        <span>{safeRound(readabilityScore.fleschKincaidGrade)}</span>
-                      </div>
-                    </div>
                   </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">
-                    Suggestions ({suggestions.length})
-                    {suggestionsLoading && (
-                      <span className="ml-2 text-xs text-blue-600">Analyzing...</span>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 h-full overflow-y-auto">
-                  {suggestionsLoading ? (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-sm text-gray-500">Finding suggestions...</p>
-                    </div>
-                  ) : suggestions.length > 0 ? (
-                    <ul className="space-y-3">
-                      {suggestions.map((suggestion) => (
-                        <li key={suggestion.id} className="border rounded-lg p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Badge
-                              variant={
-                                suggestion.type === "grammar"
-                                  ? "destructive"
-                                  : suggestion.type === "spelling"
-                                    ? "default"
-                                    : "secondary"
-                              }
-                            >
-                              {suggestion.type}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-700">{suggestion.message}</p>
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-700">
-                              Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
-                            </div>
-                            <div className="text-xs text-gray-700">
-                              Suggested:{" "}
-                              <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button size="sm" onClick={() => applySuggestion(suggestion)} className="text-xs">
-                              Apply
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => dismissSuggestion(suggestion.id)}
-                              className="text-xs"
-                            >
-                              Dismiss
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-center">
-                      <p className="text-sm text-gray-500">
-                        Suggestions will appear here as you write.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteDocument(doc.id, doc.title)
+                  }}
+                  aria-label={`Delete document ${doc.title}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </Card>
-            </div>
-          </div>
+            ))
+          )}
         </div>
-      </main>
+      </div>
     </div>
   )
 }
