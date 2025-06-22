@@ -198,7 +198,7 @@ export default function SettingsPage() {
                 <div>
                   <Label htmlFor="email">Email Address</Label>
                   <Input id="email" type="email" value={profile.email} disabled className="bg-gray-50" />
-                  <p className="text-xs text-gray-600 mt-1">Email cannot be changed</p>
+                  <p className="text-xs text-gray-700 mt-1">Email cannot be changed</p>
                 </div>
 
                 <div>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
 
               <div>
                 <Label>Member Since</Label>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-700 mt-1">
                   {new Date(profile.created_at).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
@@ -245,7 +245,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-900">Delete Account</h3>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-700 mt-1">
                     Permanently delete your account and all associated data. This action cannot be undone.
                   </p>
                 </div>

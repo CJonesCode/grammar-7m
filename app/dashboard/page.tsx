@@ -155,7 +155,7 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold text-gray-900">Grammar Checker</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {user?.email}</span>
+              <span className="text-sm text-gray-700">Welcome, {user?.email}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -225,9 +225,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {documents.length === 0 ? (
             <div className="col-span-full text-center py-12">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
-              <p className="text-gray-600 mb-4">Create your first document to get started with grammar checking.</p>
+              <p className="text-gray-700 mb-4">Create your first document to get started with grammar checking.</p>
             </div>
           ) : (
             documents.map((doc) => (
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                     <CardTitle className="text-lg truncate pr-8">{doc.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 text-sm text-gray-600">
+                    <div className="space-y-2 text-sm text-gray-700">
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4" />
                         <span>Last edited: {formatDate(doc.last_edited_at)}</span>

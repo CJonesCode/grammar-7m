@@ -317,7 +317,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       <span className="font-medium">{safeRound(readabilityScore.fleschReadingEase)}/100</span>
                     </div>
                     {Number.isFinite(readabilityScore.fleschReadingEase) && (
-                      <div className="text-xs text-gray-600">
+                      <div className="text-xs text-gray-700">
                         {getReadabilityLevel(readabilityScore.fleschReadingEase)}
                       </div>
                     )}
@@ -348,7 +348,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               </CardHeader>
               <CardContent className="space-y-3">
                 {suggestions.length === 0 ? (
-                  <p className="text-sm text-gray-600">No suggestions found. Great job!</p>
+                  <p className="text-sm text-gray-700">No suggestions found. Great job!</p>
                 ) : (
                   suggestions.slice(0, 10).map((suggestion) => (
                     <div key={suggestion.id} className="border rounded-lg p-3 space-y-2">
@@ -367,10 +367,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       </div>
                       <p className="text-sm text-gray-700">{suggestion.message}</p>
                       <div className="space-y-1">
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-700">
                           Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-700">
                           Suggested:{" "}
                           <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
                         </div>
