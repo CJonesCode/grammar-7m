@@ -11,5 +11,27 @@ export function createServerSupabase() {
     throw new Error("Supabase environment variables are not set")
   }
 
-  return createServerClient(supabaseUrl, supabaseKey, { cookies })
+  const cookieStore = cookies()
+
+  return createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value
+      },
+      set(name: string, value: string, options: any) {
+        try {
+          cookieStore.set({ name, value, ...options })
+        } catch {
+          /* Running in a context where mutating cookies is not allowed (e.g. static render) */
+        }
+      },
+      remove(name: string, options: any) {
+        try {
+          cookieStore.set({ name, value: "", ...options })
+        } catch {
+          /* noop */
+        }
+      },
+    },
+  })
 } 
