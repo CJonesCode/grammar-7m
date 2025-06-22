@@ -53,35 +53,25 @@ Build a grammar correction tool for graduate students writing thesis chapters. T
   - `message` (text)  
   - `created_at` (timestamp)  
 
----
+### Authentication & Clients (updated)
+- The app now uses `@supabase/ssr` for both browser and server clients.
+  - Client: `createBrowserClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)`
+  - Server / Route handlers: `createServerClient` wrapped in `lib/supabase-server.ts`.
+- Required env vars:
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (browser & server)
+  - Optional fallbacks for server‐only code: `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+- `DEBUG_LOGGING=true` (and/or `NEXT_PUBLIC_DEBUG_LOGGING=true`) enables timing logs for performance profiling.
 
-### API Endpoints
+### API Endpoints (updated)
+- `GET /api/documents` – returns `{ id, title, readability_score, last_edited_at }[]` (content omitted for speed).
+- `POST /api/documents/:id/suggestions` – bulk-persists suggestions via RPC `save_suggestions`.
 
-- `GET/POST /api/documents`  
-- `GET/PUT/DELETE /api/documents/:id`  
-- `GET/POST /api/documents/:id/suggestions`  
-- `GET/POST /api/documents/:id/versions`  
-- `GET/PUT /api/profile`  
+### Database helpers (new)
+- `public.save_suggestions(doc_id uuid, suggestions jsonb)` – clears & bulk-inserts suggestion rows in one round-trip, `SECURITY DEFINER`.
+- Composite index `idx_documents_user_last_edited (user_id, last_edited_at DESC)` supports the dashboard query.
 
 ---
 
 ### Key Components
 
-- `LoginPage` with `LoginForm`  
-- `DashboardPage` with `DocumentList`, `NewDocumentButton`  
-- `EditorPage` with `TextEditor`, `SuggestionSidebar`, `ReadabilityPanel`, `VersionHistoryDrawer`  
-- `SettingsPage` with `UserProfileForm`, `DeleteAccountButton`  
-
----
-
-## 🚀 MVP Launch Requirements
-
-1. Users must be able to sign up, log in, and manage their session.  
-2. Users must be able to create, save, and edit documents with autosave.  
-3. The editor must show real-time grammar, spelling, and style suggestions via OpenAI API.  
-4. Readability score must be calculated and displayed for each document.  
-5. Each document must save version snapshots and allow restores.  
-6. UI must be responsive, minimal, and distraction-free using Tailwind CSS.  
-7. All API routes must be protected with Supabase auth and RLS.  
-8. The application must work securely across desktop and tablet browsers.
-
+- `LoginPage`

@@ -102,6 +102,10 @@ Policies (RLS enabled):
 Trigger:
 * `on_auth_user_created` – **AFTER INSERT** on `auth.users` → executes `public.handle_new_user()`
 
+### `public.save_suggestions(doc_id uuid, suggestions jsonb)`
+* Purpose: Delete existing suggestions for a document and bulk-insert the new set in a single call (uses `jsonb_array_elements`).
+* Security: `SECURITY DEFINER` – respects RLS via FK.
+
 ---
 
 ## Row Level Security (RLS)
@@ -116,3 +120,6 @@ All four application tables (`users`, `documents`, `document_versions`, and `sug
 
 ## Outstanding Performance Recommendations
 For production-scale workloads you may want to create additional indexes and constraints (e.g. trigram search on `title`, GIN on `readability_score`, unique constraint on `(document_id, content_hash)`, and range-based indexes for `suggestions`).  See `scripts/000-setup-complete-simple.sql` comments and the performance review in the code review. 
+
+### Indexes (additions)
+* `idx_documents_user_last_edited` – (`user_id`, `last_edited_at` DESC) optimises the dashboard list query. 
