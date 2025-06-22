@@ -28,6 +28,7 @@ interface Document {
 }
 
 const AUTOSAVE_DELAY = 2000 // 2 seconds
+const SUGGESTION_DEBOUNCE = 1000 // 1 second delay before generating suggestions
 
 export default function EditorPage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth()
@@ -41,8 +42,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState("")
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [autosaveActive, setAutosaveActive] = useState(false)
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -57,6 +60,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [user, authLoading, router, params.id])
 
   const fetchDocument = async () => {
+    const startTime = performance.now()
     try {
       const response = await fetch(`/api/documents/${params.id}`)
 
@@ -70,10 +74,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       setContent(data.content)
       setReadabilityScore(data.readability_score)
 
-      // Generate initial suggestions
-      if (data.content.trim()) {
-        await generateSuggestionsForContent(data.content)
-      }
+      const endTime = performance.now()
+      console.log(`Document loaded in ${endTime - startTime}ms (content: ${data.content.length} chars)`)
+
+      // Don't generate suggestions immediately - wait for user interaction
+      // This improves initial load time
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -87,6 +92,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       return
     }
 
+    setSuggestionsLoading(true)
+    const startTime = performance.now()
+    
     try {
       const response = await fetch(`/api/documents/${params.id}/suggestions`, {
         method: "POST",
@@ -101,15 +109,23 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       if (response.ok) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
+        const endTime = performance.now()
+        console.log(`Suggestions loaded in ${endTime - startTime}ms`)
       } else {
         // Fallback to client-side suggestions
         const mockSuggestions = generateSuggestions(text)
         setSuggestions(mockSuggestions)
+        const endTime = performance.now()
+        console.log(`Client-side suggestions generated in ${endTime - startTime}ms`)
       }
     } catch (error) {
       // Fallback to client-side suggestions
       const mockSuggestions = generateSuggestions(text)
       setSuggestions(mockSuggestions)
+      const endTime = performance.now()
+      console.log(`Client-side suggestions (fallback) generated in ${endTime - startTime}ms`)
+    } finally {
+      setSuggestionsLoading(false)
     }
   }
 
@@ -151,19 +167,27 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
 
-    // Clear existing timeout
+    // Clear existing timeouts
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
+    }
+    if (suggestionTimeoutRef.current) {
+      clearTimeout(suggestionTimeoutRef.current)
     }
 
     // Start autosave countdown
     setAutosaveActive(true)
 
-    // Debounced save and suggestion generation
+    // Debounced save
     saveTimeoutRef.current = setTimeout(() => {
       setAutosaveActive(false)
       saveDocument(newContent)
     }, AUTOSAVE_DELAY)
+
+    // Debounced suggestions (separate from save to avoid blocking)
+    suggestionTimeoutRef.current = setTimeout(() => {
+      generateSuggestionsForContent(newContent)
+    }, SUGGESTION_DEBOUNCE)
   }
 
   const handleAutosaveComplete = () => {
@@ -198,13 +222,23 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }
 
   const handleManualSave = () => {
-    // Cancel autosave and save immediately
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
-    setAutosaveActive(false)
     saveDocument(content)
   }
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      if (suggestionTimeoutRef.current) {
+        clearTimeout(suggestionTimeoutRef.current)
+      }
+    }
+  }, [])
 
   if (authLoading || loading) {
     return (
@@ -331,11 +365,29 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             {/* Suggestions */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Suggestions ({suggestions.length})</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Suggestions ({suggestions.length})
+                  {suggestionsLoading && (
+                    <span className="ml-2 text-xs text-blue-600">Analyzing...</span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {suggestions.length === 0 ? (
-                  <p className="text-sm text-gray-700">No suggestions found. Great job!</p>
+                {suggestionsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-sm text-gray-600">Analyzing your text...</div>
+                  </div>
+                ) : suggestions.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-700 mb-2">
+                      {content.trim() ? "No suggestions found. Great job!" : "Start typing to see suggestions"}
+                    </p>
+                    {!content.trim() && (
+                      <p className="text-xs text-gray-500">
+                        Grammar and style suggestions will appear here as you write
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   suggestions.slice(0, 10).map((suggestion) => (
                     <div key={suggestion.id} className="border rounded-lg p-3 space-y-2">

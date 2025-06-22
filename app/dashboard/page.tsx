@@ -30,6 +30,7 @@ interface Document {
   last_edited_at: string
   created_at: string
   readability_score: any
+  word_count?: number
 }
 
 export default function DashboardPage() {
@@ -244,7 +245,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <FileText className="h-4 w-4" />
-                        <span>{getWordCount(doc.content || "")} words</span>
+                        <span>
+                          {doc.readability_score?.wordCount || doc.word_count || 0} words
+                        </span>
                       </div>
                       {Number.isFinite(doc.readability_score?.fleschReadingEase) && (
                         <div className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
