@@ -1,5 +1,5 @@
-# Grammarly MVP  
-### Real-time Grammar & Style Assistant for Graduate Writers
+# Ship of Thesis
+### Your AI-Powered Writing Assistant for Theses and Academic Papers
 
 ---
 

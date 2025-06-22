@@ -7,9 +7,9 @@ import { AuthProvider } from "@/contexts/auth-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Grammarly MVP - Grammar Correction for Graduate Students",
-  description: "A grammar correction tool for graduate students writing thesis chapters",
-    generator: 'v0.dev'
+  title: "Ship of Thesis",
+  description: "Your AI Writing Assistant for thesis and academic papers.",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
-# Grammarly MVP - Product Requirements Document (PRD)
+# Ship of Thesis - Product Requirements Document (PRD)
 
 ## 📌 Project Overview
-Build a grammar correction tool for graduate students writing thesis chapters. The MVP will provide real-time grammar/spell checks, basic style suggestions, readability analysis, and secure document editing with user authentication.
+Build a writing assistant for graduate students writing thesis chapters. The MVP will provide real-time grammar/spell checks, basic style suggestions, readability analysis, and secure document editing with user authentication.
 
 ---
 

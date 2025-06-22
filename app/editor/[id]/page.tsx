@@ -362,63 +362,60 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="p-4 h-full overflow-y-auto">
                 {suggestionsLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="text-sm text-gray-600">Analyzing your text...</div>
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-sm text-gray-500">Finding suggestions...</p>
                   </div>
-                ) : suggestions.length === 0 ? (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-700 mb-2">
-                      {content.trim() ? "No suggestions found. Great job!" : "Start typing to see suggestions"}
-                    </p>
-                    {!content.trim() && (
-                      <p className="text-xs text-gray-500">
-                        Grammar and style suggestions will appear here as you write
-                      </p>
-                    )}
-                  </div>
+                ) : suggestions.length > 0 ? (
+                  <ul className="space-y-3">
+                    {suggestions.map((suggestion) => (
+                      <li key={suggestion.id} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant={
+                              suggestion.type === "grammar"
+                                ? "destructive"
+                                : suggestion.type === "spelling"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                          >
+                            {suggestion.type}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-700">{suggestion.message}</p>
+                        <div className="space-y-1">
+                          <div className="text-xs text-gray-700">
+                            Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
+                          </div>
+                          <div className="text-xs text-gray-700">
+                            Suggested:{" "}
+                            <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button size="sm" onClick={() => applySuggestion(suggestion)} className="text-xs">
+                            Apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => dismissSuggestion(suggestion.id)}
+                            className="text-xs"
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
-                  suggestions.slice(0, 10).map((suggestion) => (
-                    <div key={suggestion.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Badge
-                          variant={
-                            suggestion.type === "grammar"
-                              ? "destructive"
-                              : suggestion.type === "spelling"
-                                ? "default"
-                                : "secondary"
-                          }
-                        >
-                          {suggestion.type}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-700">{suggestion.message}</p>
-                      <div className="space-y-1">
-                        <div className="text-xs text-gray-700">
-                          Original: <span className="font-mono bg-red-50 px-1 rounded">{suggestion.originalText}</span>
-                        </div>
-                        <div className="text-xs text-gray-700">
-                          Suggested:{" "}
-                          <span className="font-mono bg-green-50 px-1 rounded">{suggestion.suggestedText}</span>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" onClick={() => applySuggestion(suggestion)} className="text-xs">
-                          Apply
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => dismissSuggestion(suggestion.id)}
-                          className="text-xs"
-                        >
-                          Dismiss
-                        </Button>
-                      </div>
-                    </div>
-                  ))
+                  <div className="flex items-center justify-center h-full text-center">
+                    <p className="text-sm text-gray-500">
+                      Suggestions will appear here as you write.
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
