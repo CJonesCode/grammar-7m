@@ -26,7 +26,7 @@ function safeRound(value: number | null | undefined) {
 interface Document {
   id: string
   title: string
-  content: string
+  content?: string
   last_edited_at: string
   created_at: string
   readability_score: any
@@ -155,7 +155,7 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold text-gray-900">Grammar Checker</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user?.email}</span>
+              <span className="text-sm text-gray-700">Welcome, {user?.email}</span
               <Button
                 variant="ghost"
                 size="sm"
@@ -244,7 +244,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <FileText className="h-4 w-4" />
-                        <span>{getWordCount(doc.content)} words</span>
+                        <span>{getWordCount(doc.content || "")} words</span>
                       </div>
                       {Number.isFinite(doc.readability_score?.fleschReadingEase) && (
                         <div className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
