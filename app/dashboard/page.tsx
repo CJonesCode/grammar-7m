@@ -55,16 +55,29 @@ export default function DashboardPage() {
   }, [user, authLoading, router])
 
   const fetchDocuments = async () => {
+    const startTime = performance.now()
+    console.log("🔄 Dashboard: Starting fetchDocuments")
+    
     try {
       const response = await fetch("/api/documents")
+      const responseTime = performance.now()
+      console.log(`⏱️ Dashboard: API response received in ${responseTime - startTime}ms`)
 
       if (!response.ok) {
         throw new Error("Failed to fetch documents")
       }
 
       const { documents } = await response.json()
+      const parseTime = performance.now()
+      console.log(`📊 Dashboard: JSON parsed in ${parseTime - responseTime}ms`)
+      console.log(`📄 Dashboard: Received ${documents?.length || 0} documents`)
+      console.log("📋 Dashboard: Documents data:", JSON.stringify(documents, null, 2))
+      
       setDocuments(documents || [])
+      const totalTime = performance.now()
+      console.log(`✅ Dashboard: Total fetch time ${totalTime - startTime}ms`)
     } catch (error: any) {
+      console.error("❌ Dashboard: Fetch error:", error)
       setError(error.message)
     } finally {
       setLoading(false)
