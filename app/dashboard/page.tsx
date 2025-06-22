@@ -155,7 +155,7 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold text-gray-900">Grammar Checker</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">Welcome, {user?.email}</span
+              <span className="text-sm text-gray-700">Welcome, {user?.email}</span>
               <Button
                 variant="ghost"
                 size="sm"
