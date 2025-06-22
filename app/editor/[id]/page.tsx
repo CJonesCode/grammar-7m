@@ -60,7 +60,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [user, authLoading, router, params.id])
 
   const fetchDocument = async () => {
-    const startTime = performance.now()
     try {
       const response = await fetch(`/api/documents/${params.id}`)
 
@@ -73,9 +72,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       setDocument(data)
       setContent(data.content)
       setReadabilityScore(data.readability_score)
-
-      const endTime = performance.now()
-      console.log(`Document loaded in ${endTime - startTime}ms (content: ${data.content.length} chars)`)
 
       // Don't generate suggestions immediately - wait for user interaction
       // This improves initial load time
@@ -93,7 +89,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
 
     setSuggestionsLoading(true)
-    const startTime = performance.now()
     
     try {
       const response = await fetch(`/api/documents/${params.id}/suggestions`, {
@@ -109,21 +104,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       if (response.ok) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
-        const endTime = performance.now()
-        console.log(`Suggestions loaded in ${endTime - startTime}ms`)
       } else {
         // Fallback to client-side suggestions
         const mockSuggestions = generateSuggestions(text)
         setSuggestions(mockSuggestions)
-        const endTime = performance.now()
-        console.log(`Client-side suggestions generated in ${endTime - startTime}ms`)
       }
     } catch (error) {
       // Fallback to client-side suggestions
       const mockSuggestions = generateSuggestions(text)
       setSuggestions(mockSuggestions)
-      const endTime = performance.now()
-      console.log(`Client-side suggestions (fallback) generated in ${endTime - startTime}ms`)
     } finally {
       setSuggestionsLoading(false)
     }

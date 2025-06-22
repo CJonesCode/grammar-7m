@@ -2,9 +2,14 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
 export async function updateSession(request: NextRequest) {
+  console.log("Middleware: Processing request for", request.url)
   const response = NextResponse.next({ request: { headers: request.headers } })
 
   try {
+    // Debug: Log available cookies
+    const allCookies = request.cookies.getAll()
+    console.log("Middleware: Available cookies:", allCookies.map(c => c.name))
+    
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -38,7 +43,10 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (user) {
+      console.log("Middleware: Setting user header for", user.email)
       response.headers.set("x-supa-user", user.id)
+    } else {
+      console.log("Middleware: No user found in session")
     }
 
     return response

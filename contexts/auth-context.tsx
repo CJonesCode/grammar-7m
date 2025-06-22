@@ -18,42 +18,33 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const initialized = useRef(false)
   const mounted = useRef(true)
-  const initialSessionChecked = useRef(false)
 
   useEffect(() => {
-    // Prevent double initialization
-    if (initialized.current) {
-      return
-    }
-    initialized.current = true
-
     let authSubscription: any = null
+    let timeoutId: NodeJS.Timeout | null = null
 
-    // Get initial session and set up listener in parallel
     const initializeAuth = async () => {
       try {
-        // Set up auth state listener first
+        // Set up auth state listener
         const {
           data: { subscription },
         } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!mounted.current) return
 
-          // Skip logging INITIAL_SESSION to reduce noise
-          if (event !== "INITIAL_SESSION") {
-            console.log("Auth state changed:", event)
-          }
-
           setUser(session?.user ?? null)
+          
           if (session?.user && event === "SIGNED_IN") {
             await ensureUserProfile(session.user)
           }
 
-          // Set loading to false after initial session is processed
-          if (event === "INITIAL_SESSION" && !initialSessionChecked.current) {
-            initialSessionChecked.current = true
-            setLoading(false)
+          // Set loading to false for any auth state change
+          setLoading(false)
+          
+          // Clear timeout if it exists
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+            timeoutId = null
           }
         })
 
@@ -76,14 +67,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // If we haven't received INITIAL_SESSION event yet, set loading to false after a timeout
-        if (!initialSessionChecked.current) {
-          setTimeout(() => {
-            if (mounted.current && !initialSessionChecked.current) {
-              initialSessionChecked.current = true
-              setLoading(false)
-            }
-          }, 1000) // 1 second timeout as fallback
+        // Always set loading to false after initial session check
+        setLoading(false)
+        
+        // Clear timeout if it exists
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
         }
       } catch (error) {
         console.error("Error in initializeAuth:", error)
@@ -95,13 +85,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth()
 
+    // Fallback timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      if (mounted.current) {
+        console.warn("Auth initialization timeout - forcing loading to false")
+        setLoading(false)
+      }
+    }, 5000) // 5 second timeout
+
     return () => {
       mounted.current = false
       if (authSubscription) {
         authSubscription.unsubscribe()
       }
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
     }
-  }, []) // Empty dependency array to run only once
+  }, [])
 
   const ensureUserProfile = async (user: User) => {
     try {
