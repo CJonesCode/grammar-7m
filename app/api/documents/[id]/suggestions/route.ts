@@ -36,7 +36,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Generate mock suggestions using the grammar library
-    const suggestions: any[] = [] // Suggestion engine disabled temporarily
+    const suggestionTimer = startTimer()
+    const suggestions = generateSuggestions(content)
+    endTimer("generateSuggestions", suggestionTimer)
 
     // Store suggestions in database
     if (suggestions.length > 0) {
