@@ -114,14 +114,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }
 
   const saveDocument = useCallback(
-    async (newContent: string, shouldCreateVersion = false) => {
+    async (newContent: string) => {
       if (!document) return
 
       setSaving(true)
       try {
-        // Update document via API
-        const response = await fetch(`/api/documents/${document.id}`, {
-          method: "PUT",
+        // Consolidated edit endpoint
+        const response = await fetch(`/api/documents/${document.id}/edit`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -134,21 +134,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           throw new Error("Failed to save document")
         }
 
-        const { document: updatedDoc } = await response.json()
+        const { document: updatedDoc, suggestions: newSuggestions } = await response.json()
         setReadabilityScore(updatedDoc.readability_score)
-
-        // Create version snapshot if requested
-        if (shouldCreateVersion) {
-          await fetch(`/api/documents/${document.id}/versions`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              content: newContent,
-            }),
-          })
-        }
+        setSuggestions(newSuggestions)
 
         setLastSaved(new Date())
       } catch (error: any) {
@@ -174,8 +162,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // Debounced save and suggestion generation
     saveTimeoutRef.current = setTimeout(() => {
       setAutosaveActive(false)
-      saveDocument(newContent, true)
-      generateSuggestionsForContent(newContent)
+      saveDocument(newContent)
     }, AUTOSAVE_DELAY)
   }
 
@@ -216,7 +203,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       clearTimeout(saveTimeoutRef.current)
     }
     setAutosaveActive(false)
-    saveDocument(content, true)
+    saveDocument(content)
   }
 
   if (authLoading || loading) {

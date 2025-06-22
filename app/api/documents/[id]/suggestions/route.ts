@@ -90,7 +90,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .from("suggestions")
       .select("*")
       .eq("document_id", params.id)
-      .eq("user_id", userId)
       .order("start_index", { ascending: true })
 
     if (error) {
