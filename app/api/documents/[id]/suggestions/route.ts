@@ -3,19 +3,15 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { generateSuggestions } from "@/lib/grammar"
 import { startTimer, endTimer } from "@/lib/debug"
+import { getUserIdFromCookie } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Check authentication using the route handler client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const userId = getUserIdFromCookie()
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -31,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("documents")
       .select("id")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (docError || !document) {
@@ -55,18 +51,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         message: suggestion.message,
       }))
 
-      // Clear existing suggestions first
-      const { error: deleteError } = await supabase.from("suggestions").delete().eq("document_id", params.id)
+      // Persist suggestions in a single round-trip via Postgres RPC.
+      const { error: rpcError } = await supabase.rpc("save_suggestions", {
+        doc_id: params.id,
+        suggestions: suggestionRecords,
+      })
 
-      if (deleteError) {
-        console.error("Error clearing suggestions:", deleteError)
-      }
-
-      // Insert new suggestions
-      const { error: insertError } = await supabase.from("suggestions").insert(suggestionRecords)
-
-      if (insertError) {
-        console.error("Error inserting suggestions:", insertError)
+      if (rpcError) {
+        console.error("Error saving suggestions (RPC):", rpcError)
       }
     }
 
@@ -83,13 +75,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    // Check authentication using the route handler client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
 
-    if (authError || !user) {
+    const userId = getUserIdFromCookie()
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

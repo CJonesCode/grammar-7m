@@ -44,6 +44,7 @@ Policies (RLS enabled):
 Indexes:
 * `idx_documents_user_id` – (`user_id`)
 * `idx_documents_last_edited` – (`last_edited_at` DESC)
+* `idx_documents_user_last_edited` – (`user_id`, `last_edited_at` DESC)
 
 Policies (RLS enabled):
 * **Select / Insert / Update / Delete** – allowed when `auth.uid() = user_id`.

@@ -62,7 +62,8 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "an-array-of-english-words": "^2.0.0",
-    "didyoumean": "^1.2.2"
+    "didyoumean": "^1.2.2",
+    "jwt-decode": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22",
