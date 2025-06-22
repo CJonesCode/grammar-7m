@@ -2,24 +2,27 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerSupabase } from "@/lib/supabase-server"
 import { startTimer, endTimer } from "@/lib/debug"
 
+export const runtime = "edge"
+
 export async function GET(request: NextRequest) {
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get documents for the authenticated user
     const { data: documents, error } = await supabase
       .from("documents")
       .select("id, title, readability_score, last_edited_at")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("last_edited_at", { ascending: false })
 
     if (error) {
@@ -40,12 +43,13 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabase()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
       .insert({
         title: title.trim(),
         content,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single()

@@ -7,10 +7,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -25,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("documents")
       .select("id")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (docError || !document) {
@@ -73,10 +76,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get suggestions for document
@@ -84,6 +90,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .from("suggestions")
       .select("*")
       .eq("document_id", params.id)
+      .eq("user_id", userId)
       .order("start_index", { ascending: true })
 
     if (error) {

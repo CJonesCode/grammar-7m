@@ -7,10 +7,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get document (RLS will ensure user can only access their own documents)
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .from("documents")
       .select("*")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (error) {
@@ -38,10 +41,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -60,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         last_edited_at: new Date().toISOString(),
       })
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .select()
       .single()
 
@@ -81,14 +87,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Delete document (versions will be cascade deleted)
-    const { error } = await supabase.from("documents").delete().eq("id", params.id).eq("user_id", user.id)
+    const { error } = await supabase.from("documents").delete().eq("id", params.id).eq("user_id", userId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

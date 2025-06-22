@@ -7,13 +7,17 @@ export async function GET(request: NextRequest) {
   try {
     // Check authentication using the singleton server client
     const supabase = createServerSupabase()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get user profile
-    const { data: profile, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+    const { data: profile, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -33,9 +37,13 @@ export async function PUT(request: NextRequest) {
   try {
     // Check authentication using the singleton server client
     const supabase = createServerSupabase()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -45,7 +53,7 @@ export async function PUT(request: NextRequest) {
     const { data: profile, error } = await supabase
       .from("users")
       .update({ full_name })
-      .eq("id", user.id)
+      .eq("id", userId)
       .select()
       .single()
 
@@ -67,13 +75,17 @@ export async function DELETE(request: NextRequest) {
   try {
     // Check authentication using the singleton server client
     const supabase = createServerSupabase()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Delete user data (documents will be cascade deleted due to foreign key)
-    const { error: deleteUserError } = await supabase.from("users").delete().eq("id", user.id)
+    const { error: deleteUserError } = await supabase.from("users").delete().eq("id", userId)
     if (deleteUserError) {
       return NextResponse.json({ error: deleteUserError.message }, { status: 500 })
     }

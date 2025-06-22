@@ -8,9 +8,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get versions for document (verify ownership through join)
@@ -21,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         documents!inner(user_id)
       `)
       .eq("document_id", params.id)
-      .eq("documents.user_id", user.id)
+      .eq("documents.user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50)
 
@@ -45,9 +49,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const timer = startTimer()
   try {
     const supabase = createServerSupabase()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("documents")
       .select("id")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (docError || !document) {
