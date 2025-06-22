@@ -2,8 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { calculateReadability } from "@/lib/readability"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -32,10 +34,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Get document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`GET /api/documents/${params.id}`, timer)
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -76,10 +81,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Update document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`PUT /api/documents/${params.id}`, timer)
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -103,5 +111,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   } catch (error) {
     console.error("Delete document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`DELETE /api/documents/${params.id}`, timer)
   }
 }

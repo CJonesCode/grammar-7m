@@ -2,8 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { generateSuggestions } from "@/lib/grammar"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -37,7 +39,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Generate mock suggestions using the grammar library
+    const suggestionTimer = startTimer()
     const suggestions = generateSuggestions(content)
+    endTimer("generateSuggestions", suggestionTimer)
 
     // Store suggestions in database
     if (suggestions.length > 0) {
@@ -70,10 +74,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     console.error("Suggestions API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`POST /api/documents/${params.id}/suggestions`, timer)
   }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
     // Check authentication using the route handler client
@@ -101,5 +108,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Get suggestions API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`GET /api/documents/${params.id}/suggestions`, timer)
   }
 }

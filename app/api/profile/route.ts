@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function GET(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
     const supabase = createRouteHandlerClient({ cookies })
@@ -25,10 +27,13 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Profile API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("GET /api/profile", timer)
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
     const supabase = createRouteHandlerClient({ cookies })
@@ -59,10 +64,13 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("Update profile API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("PUT /api/profile", timer)
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
     const supabase = createRouteHandlerClient({ cookies })
@@ -86,5 +94,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Delete account API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("DELETE /api/profile", timer)
   }
 }

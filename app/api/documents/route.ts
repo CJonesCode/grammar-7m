@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function GET(request: NextRequest) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
     // Check authentication using the singleton server client
@@ -29,10 +31,13 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Documents API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("GET /api/documents", timer)
   }
 }
 
 export async function POST(request: NextRequest) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
     // Check authentication using the singleton server client
@@ -70,5 +75,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Create document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("POST /api/documents", timer)
   }
 }

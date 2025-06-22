@@ -3,8 +3,10 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { calculateReadability } from "@/lib/readability"
 import { hashContent, shouldCreateVersion } from "@/lib/version-utils"
 import { cookies } from "next/headers"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -40,10 +42,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Get versions API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`GET /api/documents/${params.id}/versions`, timer)
   }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
@@ -105,5 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     console.error("Create version API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`POST /api/documents/${params.id}/versions`, timer)
   }
 }
