@@ -30,9 +30,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let authSubscription: any = null
 
-    // Get initial session
-    const getInitialSession = async () => {
+    // Get initial session and set up listener in parallel
+    const initializeAuth = async () => {
       try {
+        // Set up auth state listener first
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (!mounted.current) return
+
+          // Skip logging INITIAL_SESSION to reduce noise
+          if (event !== "INITIAL_SESSION") {
+            console.log("Auth state changed:", event)
+          }
+
+          setUser(session?.user ?? null)
+          if (session?.user && event === "SIGNED_IN") {
+            await ensureUserProfile(session.user)
+          }
+
+          // Set loading to false after initial session
+          if (event === "INITIAL_SESSION") {
+            setLoading(false)
+          }
+        })
+
+        authSubscription = subscription
+
+        // Get initial session
         const {
           data: { session },
           error,
@@ -49,44 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
-        console.error("Error in getInitialSession:", error)
+        console.error("Error in initializeAuth:", error)
       } finally {
         if (mounted.current) {
           setLoading(false)
         }
       }
-    }
-
-    // Set up auth state listener
-    const setupAuthListener = () => {
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (!mounted.current) return
-
-        // Skip logging INITIAL_SESSION to reduce noise
-        if (event !== "INITIAL_SESSION") {
-          console.log("Auth state changed:", event)
-        }
-
-        setUser(session?.user ?? null)
-        if (session?.user && event === "SIGNED_IN") {
-          await ensureUserProfile(session.user)
-        }
-
-        // Only set loading to false after initial session
-        if (event === "INITIAL_SESSION") {
-          setLoading(false)
-        }
-      })
-
-      authSubscription = subscription
-    }
-
-    // Initialize auth
-    const initializeAuth = async () => {
-      setupAuthListener()
-      await getInitialSession()
     }
 
     initializeAuth()
