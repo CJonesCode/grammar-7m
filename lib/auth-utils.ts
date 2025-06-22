@@ -19,7 +19,15 @@ interface JwtPayload {
  * can't be decoded.
  */
 export function getUserIdFromCookie(): string | null {
-  const raw = cookies().get("supabase-auth-token")?.value
+  // Supabase cookies are of the form `sb-<project-ref>-auth-token`.
+  // We don't know the ref at build time, so we scan the CookieJar for the
+  // first key that ends with "-auth-token".
+
+  const jar = cookies()
+  const tokenCookie = jar.getAll().find((c: { name: string }) => c.name.endsWith("-auth-token"))?.name
+  if (!tokenCookie) return null
+
+  const raw = jar.get(tokenCookie)?.value
   if (!raw) return null
 
   try {
