@@ -167,6 +167,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     try {
       // Use client-side Harper for grammar checking
       const harperSuggestions = await checkTextWithHarper(text)
+      console.log("🎯 Editor: Setting suggestions in state:", harperSuggestions)
       setSuggestions(harperSuggestions)
       
       // Store suggestions in database via API
@@ -313,6 +314,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       }
     }
   }, [])
+
+  // Debug: Monitor suggestions state changes
+  useEffect(() => {
+    console.log("🎯 Editor: Suggestions state updated:", suggestions)
+  }, [suggestions])
 
   if (authLoading || loading) {
     return (
