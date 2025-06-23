@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { checkTextWithHarper, type GrammarSuggestion } from "@/lib/harper-client"
 import { getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
 import { Button } from "@/components/ui/button"
+import { Toggle } from "@/components/ui/toggle"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -73,7 +74,10 @@ function HighlightedText({
   }
 
   return (
-    <div className="w-full h-full p-6 text-gray-900 leading-relaxed whitespace-pre-wrap">
+    <div
+      className="w-full h-full p-6 text-gray-900 leading-relaxed whitespace-pre-wrap overflow-y-auto"
+      style={{ fontSize: "16px", lineHeight: "1.6" }}
+    >
       {segments.map((segment, index) => {
         if (segment.suggestion) {
           const bgColor = segment.suggestion.type === 'grammar' 
@@ -132,6 +136,32 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }, [user, authLoading, router, params.id])
 
+  const fetchSuggestions = async () => {
+    try {
+      setSuggestionsLoading(true)
+      const response = await fetch(`/api/documents/${params.id}/suggestions`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch suggestions")
+      }
+      const { suggestions: raw } = await response.json()
+      // Normalize keys coming from the database (snake_case) to GrammarSuggestion shape
+      const normalized: GrammarSuggestion[] = (raw || []).map((s: any, index: number) => ({
+        id: s.id ?? `db-${index}`,
+        startIndex: s.start_index ?? s.startIndex,
+        endIndex: s.end_index ?? s.endIndex,
+        type: (s.suggestion_type ?? s.type) as "grammar" | "spelling" | "style",
+        originalText: s.original_text ?? s.originalText ?? "",
+        suggestedText: s.suggested_text ?? s.suggestedText ?? "",
+        message: s.message ?? "",
+      }))
+      setSuggestions(normalized)
+    } catch (err) {
+      console.error("❌ Editor: Failed to fetch suggestions:", err)
+    } finally {
+      setSuggestionsLoading(false)
+    }
+  }
+
   const fetchDocument = async () => {
     try {
       const response = await fetch(`/api/documents/${params.id}`)
@@ -146,8 +176,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       setContent(data.content)
       setReadabilityScore(data.readability_score)
 
-      // Don't generate suggestions immediately - wait for user interaction
-      // This improves initial load time
+      // Fetch any pre-existing suggestions for this document from the server
+      fetchSuggestions()
+
     } catch (error: any) {
       console.error("❌ Editor: Fetch error:", error)
       setError(error.message)
@@ -273,8 +304,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // Remove the applied suggestion immediately
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id))
 
-    // Save and regenerate suggestions
-    handleContentChange(newContent)
+    // Save the document right away to persist change WITHOUT regenerating suggestions immediately
+    saveDocument(newContent)
 
     // Focus back to textarea
     if (textareaRef.current) {
@@ -399,14 +430,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                     >
                       Edit
                     </Button>
-                    <Button
-                      variant={showHighlightedView ? "default" : "outline"}
+                    <Toggle
+                      pressed={showHighlightedView}
+                      onPressedChange={(value) => {
+                        if (value && suggestions.length === 0) return
+                        setShowHighlightedView(value)
+                      }}
                       size="sm"
-                      onClick={() => setShowHighlightedView(true)}
-                      disabled={suggestions.length === 0}
+                      variant="outline"
+                      disabled={suggestions.length === 0 && !showHighlightedView}
                     >
                       Review ({suggestions.length})
-                    </Button>
+                    </Toggle>
                   </div>
                 </div>
               </CardHeader>
