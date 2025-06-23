@@ -126,6 +126,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Ref mirrors autosaveActive in real time to avoid stale closures
+  const autosaveActiveRef = useRef(false)
+  useEffect(() => {
+    autosaveActiveRef.current = autosaveActive
+  }, [autosaveActive])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -278,12 +283,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       clearTimeout(suggestionTimeoutRef.current)
     }
 
-    // Start autosave countdown
-    setAutosaveActive(true)
+    // Start autosave countdown if not already active
+    if (!autosaveActiveRef.current) {
+      console.info("🌀 Spinner activated via handleContentChange")
+      setAutosaveActive(true)
+      autosaveActiveRef.current = true
+    }
 
     // Debounced save
     saveTimeoutRef.current = setTimeout(() => {
-      setAutosaveActive(false)
+      // Keep spinner active; it will deactivate via onComplete callback
       saveDocument(newContent, titleInput)
     }, AUTOSAVE_DELAY)
 
@@ -294,7 +303,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }
 
   const handleAutosaveComplete = () => {
+    console.info("✅ Spinner completed – resetting active flag")
     setAutosaveActive(false)
+    autosaveActiveRef.current = false
   }
 
   const applySuggestion = (suggestion: GrammarSuggestion) => {
