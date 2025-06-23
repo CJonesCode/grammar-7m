@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 
 interface AutosaveSpinnerProps {
   isActive: boolean
@@ -60,37 +60,47 @@ export function AutosaveSpinner({ isActive, duration, onComplete }: AutosaveSpin
     return () => clearInterval(timer)
   }, [isActive, duration, onComplete])
 
-  // Show saved state (persistent until next autosave starts)
-  if (showSaved && savedAt) {
-    return (
-      <div className="flex items-center text-sm text-green-700 font-medium">
-        <div className="w-3 h-3 bg-green-500 rounded-full mr-2" />
-        <span>Saved at {savedAt.toLocaleTimeString()}</span>
-      </div>
-    )
-  }
+  const formattedTime = useMemo(() => {
+    if (!savedAt) return ""
+    return savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  }, [savedAt])
 
-  // Show autosave progress (only when active)
-  if (isActive) {
-    return (
-      <div className="flex items-center text-sm text-gray-700">
+  // Determine display content
+  let content: React.ReactNode = null
+  if (showSaved && savedAt) {
+    content = (
+      <>
+        <div className="w-3 h-3 bg-green-500 rounded-full mr-2" />
+        <span>Saved {formattedTime}</span>
+      </>
+    )
+  } else if (isActive) {
+    content = (
+      <>
         <div className="relative w-3 h-3 mr-2">
           {/* Background circle */}
           <div className="absolute inset-0 bg-gray-200 rounded-full" />
-          {/* Progress circle - blue decreases clockwise */}
+          {/* Progress circle */}
           <div
             className="absolute inset-0 rounded-full transition-all duration-75 ease-linear"
             style={{
               background: `conic-gradient(from 0deg, transparent 0%, transparent ${progress}%, #3b82f6 ${progress}%, #3b82f6 100%)`,
-              filter: "blur(0.5px)", // Smooth edges
+              filter: "blur(0.5px)",
             }}
           />
         </div>
         {showSavingText && <span>Saving...</span>}
-      </div>
+      </>
     )
+  } else {
+    // Nothing to display when idle and never saved
+    return null
   }
 
-  // Don't show anything if not active and no saved state
-  return null
+  // Wrapper with min width to avoid layout shift
+  return (
+    <div className="flex items-center text-xs text-gray-700 min-w-[90px]">
+      {content}
+    </div>
+  )
 }

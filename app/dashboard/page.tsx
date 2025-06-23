@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Plus, FileText, Calendar, LogOut, Settings, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import Image from "next/image"
 
 // Utility to avoid NaN in the UI
 function safeRound(value: number | null | undefined) {
@@ -206,7 +207,10 @@ export default function DashboardPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
-                <h1 className="text-xl font-semibold text-gray-900">Ship of Thesis</h1>
+                <h1 className="text-xl font-semibold text-gray-900 flex items-center">
+                  <Image src="/ship_of_thesis_icon.png" alt="Ship of Thesis Icon" width={24} height={24} className="mr-2" />
+                  Ship of Thesis
+                </h1>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
@@ -247,7 +251,10 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">Ship of Thesis</h1>
+              <h1 className="text-xl font-semibold text-gray-900 flex items-center">
+                <Image src="/ship_of_thesis_icon.png" alt="Ship of Thesis Icon" width={24} height={24} className="mr-2" />
+                Ship of Thesis
+              </h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-500">{user?.full_name || user?.email}</span>

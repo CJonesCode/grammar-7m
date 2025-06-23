@@ -6,16 +6,17 @@ import { useAuth } from "@/contexts/auth-context"
 import { checkTextWithHarper, type GrammarSuggestion } from "@/lib/harper-client"
 import { getReadabilityLevel, type ReadabilityScore } from "@/lib/readability"
 import { Button } from "@/components/ui/button"
-import { Toggle } from "@/components/ui/toggle"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Save, BarChart3 } from "lucide-react"
+import { ArrowLeft, Save, BarChart3, Settings, LogOut } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { VersionHistoryDrawer } from "@/components/version-history-drawer"
 import { ResearchDrawer } from "@/components/research-drawer"
 import { AutosaveSpinner } from "@/components/autosave-spinner"
 import { toast } from "@/components/ui/use-toast"
+import Image from "next/image"
 
 // Avoid NaN when the score hasn't been calculated yet
 function safeRound(value: number | null | undefined) {
@@ -75,7 +76,7 @@ function HighlightedText({
 
   return (
     <div
-      className="w-full h-full p-6 text-gray-900 leading-relaxed whitespace-pre-wrap overflow-y-auto"
+      className="w-full h-full min-h-full p-6 text-gray-900 leading-relaxed whitespace-pre-wrap overflow-y-auto"
       style={{ fontSize: "16px", lineHeight: "1.6" }}
     >
       {segments.map((segment, index) => {
@@ -107,7 +108,7 @@ const AUTOSAVE_DELAY = 2000 // 2 seconds
 const SUGGESTION_DEBOUNCE = 1000 // 1 second delay before generating suggestions
 
 export default function EditorPage({ params }: { params: { id: string } }) {
-  const { user, loading: authLoading } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const router = useRouter()
   const [document, setDocument] = useState<Document | null>(null)
   const [content, setContent] = useState("")
@@ -120,6 +121,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [autosaveActive, setAutosaveActive] = useState(false)
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [showHighlightedView, setShowHighlightedView] = useState(false)
+  const [titleInput, setTitleInput] = useState("")
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -282,7 +284,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // Debounced save
     saveTimeoutRef.current = setTimeout(() => {
       setAutosaveActive(false)
-      saveDocument(newContent)
+      saveDocument(newContent, titleInput)
     }, AUTOSAVE_DELAY)
 
     // Debounced suggestions (separate from save to avoid blocking)
@@ -305,7 +307,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id))
 
     // Save the document right away to persist change WITHOUT regenerating suggestions immediately
-    saveDocument(newContent)
+    saveDocument(newContent, titleInput)
 
     // Focus back to textarea
     if (textareaRef.current) {
@@ -326,7 +328,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
-    saveDocument(content)
+    saveDocument(content, titleInput)
   }
 
   const handleSuggestionClick = (suggestion: GrammarSuggestion) => {
@@ -350,6 +352,22 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     console.log("🎯 Editor: Suggestions state updated:", suggestions)
   }, [suggestions])
+
+  // Keep local title input in sync with document state
+  useEffect(() => {
+    if (document) {
+      setTitleInput(document.title)
+    }
+  }, [document?.title])
+
+  // Rename handler
+  const handleTitleBlur = () => {
+    if (!document) return
+    const trimmed = titleInput.trim() || "Untitled Document"
+    if (trimmed !== document.title) {
+      saveDocument(content, trimmed)
+    }
+  }
 
   if (authLoading || loading) {
     return (
@@ -376,32 +394,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-baseline space-x-4">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900 flex items-center">
+                <Image src="/ship_of_thesis_icon.png" alt="Ship of Thesis Icon" width={24} height={24} className="mr-2" />
+                Ship of Thesis
+              </h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">{user?.full_name || user?.email}</span>
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => router.push("/dashboard")}
-                aria-label="Back to dashboard"
+                size="icon"
+                onClick={() => router.push("/settings")}
+                aria-label="Settings"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </Button>
-              <h1 className="text-xl font-semibold text-gray-900 truncate max-w-md">{document.title}</h1>
-
-              {/* Status indicators */}
-              <div className="flex items-baseline space-x-3">
-                <AutosaveSpinner
-                  isActive={autosaveActive}
-                  duration={AUTOSAVE_DELAY}
-                  onComplete={handleAutosaveComplete}
-                />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
-              <ResearchDrawer documentId={document.id} documentTitle={document.title} />
-              <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Now
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -418,34 +428,58 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Editor */}
           <div className="lg:col-span-3">
-            <Card className="h-[calc(100vh-200px)]">
+            <Card className="h-[calc(100vh-200px)] flex flex-col overflow-hidden">
               <CardHeader className="pb-3 border-b">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-medium">Editor</CardTitle>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center space-y-2 md:space-y-0">
                   <div className="flex items-center space-x-2">
                     <Button
-                      variant={showHighlightedView ? "outline" : "default"}
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setShowHighlightedView(false)}
+                      onClick={() => router.push("/dashboard")}
+                      aria-label="Back to dashboard"
                     >
-                      Edit
+                      <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <Toggle
-                      pressed={showHighlightedView}
-                      onPressedChange={(value) => {
-                        if (value && suggestions.length === 0) return
-                        setShowHighlightedView(value)
+                    <input
+                      value={titleInput}
+                      onChange={(e) => setTitleInput(e.target.value)}
+                      onBlur={handleTitleBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          (e.target as HTMLInputElement).blur()
+                        }
                       }}
-                      size="sm"
-                      variant="outline"
-                      disabled={suggestions.length === 0 && !showHighlightedView}
-                    >
-                      Review ({suggestions.length})
-                    </Toggle>
+                      className="text-sm font-semibold bg-transparent border-b border-transparent focus:border-gray-300 focus:outline-none truncate max-w-xs"
+                    />
+                    <AutosaveSpinner
+                      isActive={autosaveActive}
+                      duration={AUTOSAVE_DELAY}
+                      onComplete={handleAutosaveComplete}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
+                    <ResearchDrawer documentId={document.id} documentTitle={document.title} />
+                    <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving} className="whitespace-nowrap">
+                      <Save className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Save Now</span>
+                    </Button>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-700">Edit</span>
+                      <Switch
+                        checked={showHighlightedView}
+                        onCheckedChange={(value) => {
+                          if (value && suggestions.length === 0) return
+                          setShowHighlightedView(value)
+                        }}
+                        disabled={suggestions.length === 0 && !showHighlightedView}
+                      />
+                      <span className="text-xs text-gray-700">Review</span>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-0 h-full">
+              <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
                 {showHighlightedView ? (
                   <HighlightedText
                     content={content}
@@ -458,7 +492,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                     value={content}
                     onChange={(e) => handleContentChange(e.target.value)}
                     placeholder="Start writing your thesis chapter..."
-                    className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
+                    className="w-full flex-1 p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed overflow-y-auto"
                     style={{ fontSize: "16px", lineHeight: "1.6" }}
                   />
                 )}
