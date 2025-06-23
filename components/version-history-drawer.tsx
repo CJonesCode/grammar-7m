@@ -102,7 +102,7 @@ export function VersionHistoryDrawer({ documentId, onRestoreVersion }: VersionHi
           </SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 h-[calc(100vh-120px)] overflow-y-auto pr-2">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -120,7 +120,7 @@ export function VersionHistoryDrawer({ documentId, onRestoreVersion }: VersionHi
               <p className="text-gray-600">Versions are automatically saved as you edit your document.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 pb-4">
               {versions.map((version, index) => {
                 const { date, time } = formatDate(version.created_at)
                 const wordCount = getWordCount(version.content_snapshot)
@@ -157,7 +157,7 @@ export function VersionHistoryDrawer({ documentId, onRestoreVersion }: VersionHi
                           <Separator />
                           <div>
                             <h4 className="text-sm font-medium mb-2">Preview:</h4>
-                            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border">
+                            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border max-h-32 overflow-y-auto">
                               {getVersionPreview(version.content_snapshot, 200) || "Empty document"}
                             </p>
                           </div>

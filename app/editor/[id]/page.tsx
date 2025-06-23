@@ -28,6 +28,76 @@ interface Document {
   last_edited_at: string
 }
 
+// Component to render highlighted text
+function HighlightedText({ 
+  content, 
+  suggestions, 
+  onSuggestionClick 
+}: { 
+  content: string
+  suggestions: GrammarSuggestion[]
+  onSuggestionClick: (suggestion: GrammarSuggestion) => void
+}) {
+  if (!content) return null
+
+  // Sort suggestions by start index to process them in order
+  const sortedSuggestions = [...suggestions].sort((a, b) => a.startIndex - b.startIndex)
+  
+  const segments: Array<{ text: string; suggestion?: GrammarSuggestion }> = []
+  let lastIndex = 0
+
+  // Create segments with suggestions
+  sortedSuggestions.forEach(suggestion => {
+    // Add text before this suggestion
+    if (suggestion.startIndex > lastIndex) {
+      segments.push({
+        text: content.slice(lastIndex, suggestion.startIndex)
+      })
+    }
+    
+    // Add the suggested text with highlighting
+    segments.push({
+      text: content.slice(suggestion.startIndex, suggestion.endIndex),
+      suggestion
+    })
+    
+    lastIndex = suggestion.endIndex
+  })
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    segments.push({
+      text: content.slice(lastIndex)
+    })
+  }
+
+  return (
+    <div className="w-full h-full p-6 text-gray-900 leading-relaxed whitespace-pre-wrap">
+      {segments.map((segment, index) => {
+        if (segment.suggestion) {
+          const bgColor = segment.suggestion.type === 'grammar' 
+            ? 'bg-red-100 border-b-2 border-red-300' 
+            : segment.suggestion.type === 'spelling'
+            ? 'bg-yellow-100 border-b-2 border-yellow-300'
+            : 'bg-blue-100 border-b-2 border-blue-300'
+          
+          return (
+            <span
+              key={index}
+              className={`${bgColor} cursor-pointer hover:opacity-80 transition-opacity`}
+              onClick={() => onSuggestionClick(segment.suggestion!)}
+              title={`${segment.suggestion!.type}: ${segment.suggestion!.message}`}
+            >
+              {segment.text}
+            </span>
+          )
+        }
+        return <span key={index}>{segment.text}</span>
+      })}
+    </div>
+  )
+}
+
 const AUTOSAVE_DELAY = 2000 // 2 seconds
 const SUGGESTION_DEBOUNCE = 1000 // 1 second delay before generating suggestions
 
@@ -44,6 +114,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [autosaveActive, setAutosaveActive] = useState(false)
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [showHighlightedView, setShowHighlightedView] = useState(false)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -225,6 +296,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     saveDocument(content)
   }
 
+  const handleSuggestionClick = (suggestion: GrammarSuggestion) => {
+    // Apply the suggestion when clicked
+    applySuggestion(suggestion)
+  }
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -304,15 +380,45 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           {/* Main Editor */}
           <div className="lg:col-span-3">
             <Card className="h-[calc(100vh-200px)]">
+              <CardHeader className="pb-3 border-b">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-sm font-medium">Editor</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant={showHighlightedView ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => setShowHighlightedView(false)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant={showHighlightedView ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowHighlightedView(true)}
+                      disabled={suggestions.length === 0}
+                    >
+                      Review ({suggestions.length})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
               <CardContent className="p-0 h-full">
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  placeholder="Start writing your thesis chapter..."
-                  className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
-                  style={{ fontSize: "16px", lineHeight: "1.6" }}
-                />
+                {showHighlightedView ? (
+                  <HighlightedText
+                    content={content}
+                    suggestions={suggestions}
+                    onSuggestionClick={handleSuggestionClick}
+                  />
+                ) : (
+                  <textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => handleContentChange(e.target.value)}
+                    placeholder="Start writing your thesis chapter..."
+                    className="w-full h-full p-6 border-none resize-none focus:outline-none text-gray-900 leading-relaxed"
+                    style={{ fontSize: "16px", lineHeight: "1.6" }}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>
@@ -370,6 +476,27 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 h-full overflow-y-auto">
+                {/* Highlighting Legend */}
+                {suggestions.length > 0 && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <h4 className="text-xs font-medium text-gray-700 mb-2">Highlighting Legend:</h4>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+                        <span>Grammar errors</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></div>
+                        <span>Spelling errors</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-blue-100 border border-blue-300 rounded"></div>
+                        <span>Style suggestions</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {suggestionsLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-sm text-gray-500">Finding suggestions...</p>
