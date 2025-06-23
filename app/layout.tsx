@@ -7,9 +7,9 @@ import { AuthProvider } from "@/contexts/auth-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Grammarly MVP - Grammar Correction for Graduate Students",
-  description: "A grammar correction tool for graduate students writing thesis chapters",
-    generator: 'v0.dev'
+  title: "Ship of Thesis",
+  description: "Your AI Writing Assistant for thesis and academic papers.",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -20,7 +20,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <main id="main-content" className="min-h-screen focus:outline-none focus-visible:ring-0">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   )

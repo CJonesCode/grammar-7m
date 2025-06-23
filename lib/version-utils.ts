@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createServerClient } from '@supabase/ssr'
 
 // Simple hash function for content comparison
 export function hashContent(content: string): string {
@@ -16,12 +15,15 @@ export function hashContent(content: string): string {
 }
 
 // Check if a version with the same content hash already exists
-export async function shouldCreateVersion(documentId: string, content: string): Promise<boolean> {
+export async function shouldCreateVersion(
+  documentId: string, 
+  content: string, 
+  supabaseClient: any
+): Promise<boolean> {
   const contentHash = hashContent(content)
-  const supabase = createRouteHandlerClient({ cookies })
 
   try {
-    const { data } = await supabase
+    const { data } = await supabaseClient
       .from("document_versions")
       .select("id")
       .eq("document_id", documentId)
@@ -30,7 +32,35 @@ export async function shouldCreateVersion(documentId: string, content: string): 
 
     return !data || data.length === 0
   } catch (error) {
-    console.error("Error checking version:", error)
     return true // Default to creating version if check fails
+  }
+}
+
+// Create a version for a document
+export async function createVersion(
+  documentId: string,
+  content: string,
+  readabilityScore: any,
+  supabaseClient: any
+): Promise<boolean> {
+  const contentHash = hashContent(content)
+
+  try {
+    const { error } = await supabaseClient
+      .from("document_versions")
+      .insert({
+        document_id: documentId,
+        content_snapshot: content,
+        readability_score: readabilityScore,
+        content_hash: contentHash,
+      })
+
+    if (error) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    return false
   }
 }

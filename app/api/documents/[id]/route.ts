@@ -1,51 +1,59 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
 import { calculateReadability } from "@/lib/readability"
+import { startTimer, endTimer } from "@/lib/debug"
+import { createServerSupabase } from "@/lib/supabase-server"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
+  
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Check authentication using the singleton server client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    
+    let userId = request.headers.get("x-supa-user")
+    
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get document (RLS will ensure user can only access their own documents)
     const { data: document, error } = await supabase
       .from("documents")
-      .select("*")
+      .select("id, title, content, readability_score, last_edited_at")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (error) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
-
-    return NextResponse.json({ document })
+    
+    // Add caching headers for better performance
+    const response = NextResponse.json({ document })
+    response.headers.set('Cache-Control', 'private, max-age=60') // Cache for 1 minute
+    return response
   } catch (error) {
-    console.error("Get document API error:", error)
+    console.error("❌ API: Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`GET /api/documents/${params.id}`, timer)
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Check authentication using the singleton server client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -64,7 +72,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         last_edited_at: new Date().toISOString(),
       })
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .select()
       .single()
 
@@ -76,24 +84,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Update document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`PUT /api/documents/${params.id}`, timer)
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Check authentication using the singleton server client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Delete document (versions will be cascade deleted)
-    const { error } = await supabase.from("documents").delete().eq("id", params.id).eq("user_id", user.id)
+    const { error } = await supabase.from("documents").delete().eq("id", params.id).eq("user_id", userId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -103,5 +113,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   } catch (error) {
     console.error("Delete document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`DELETE /api/documents/${params.id}`, timer)
   }
 }

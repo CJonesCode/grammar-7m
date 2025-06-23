@@ -1,47 +1,57 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { NextRequest, NextResponse } from "next/server"
+import { createServerSupabase } from "@/lib/supabase-server"
+import { startTimer, endTimer } from "@/lib/debug"
 
 export async function GET(request: NextRequest) {
+  const timer = startTimer()
+  
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    // Check authentication using the singleton server client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+
+    let userId = request.headers.get("x-supa-user")
+    
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
-    // Get documents for the authenticated user
-    const { data: documents, error } = await supabase
-      .from("documents")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("last_edited_at", { ascending: false })
+    // Use the optimized function for better performance
+    const { data: documents, error } = await supabase.rpc('get_user_documents', {
+      user_uuid: userId,
+      limit_count: 20
+    })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-
-    return NextResponse.json({ documents })
+    
+    // Enhanced caching headers for better performance
+    const response = NextResponse.json({ documents })
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300') // Cache for 1 minute, stale for 5 minutes
+    return response
   } catch (error) {
-    console.error("Documents API error:", error)
+    console.error("❌ API: Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("GET /api/documents", timer)
   }
 }
 
 export async function POST(request: NextRequest) {
+  const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    // Check authentication using the singleton server client
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -57,7 +67,7 @@ export async function POST(request: NextRequest) {
       .insert({
         title: title.trim(),
         content,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single()
@@ -70,5 +80,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Create document API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("POST /api/documents", timer)
   }
 }

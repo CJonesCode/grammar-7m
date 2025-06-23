@@ -1,20 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { calculateReadability } from "@/lib/readability"
 import { hashContent, shouldCreateVersion } from "@/lib/version-utils"
-import { cookies } from "next/headers"
+import { startTimer, endTimer } from "@/lib/debug"
+import { createServerSupabase } from "@/lib/supabase-server"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get versions for document (verify ownership through join)
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         documents!inner(user_id)
       `)
       .eq("document_id", params.id)
-      .eq("documents.user_id", user.id)
+      .eq("documents.user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50)
 
@@ -34,26 +34,28 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Remove the documents join data from response
-    const cleanVersions = versions.map(({ documents, ...version }) => version)
+    const cleanVersions = versions.map(({ documents, ...version }: any) => version)
 
     return NextResponse.json({ versions: cleanVersions })
   } catch (error) {
     console.error("Get versions API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`GET /api/documents/${params.id}/versions`, timer)
   }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const timer = startTimer()
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("documents")
       .select("id")
       .eq("id", params.id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (docError || !document) {
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     // Check if we should create a new version (avoid duplicates)
-    const shouldCreate = await shouldCreateVersion(params.id, content)
+    const shouldCreate = await shouldCreateVersion(params.id, content, supabase)
     if (!shouldCreate) {
       return NextResponse.json({ message: "Version already exists" })
     }
@@ -105,5 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     console.error("Create version API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer(`POST /api/documents/${params.id}/versions`, timer)
   }
 }

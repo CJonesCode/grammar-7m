@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login")
+      router.replace("/")
       return
     }
 
@@ -124,7 +124,7 @@ export default function SettingsPage() {
 
       // Sign out and redirect
       await signOut()
-      router.push("/login")
+      router.replace("/")
     } catch (error: any) {
       setError(error.message)
       setDeleting(false)
@@ -157,7 +157,12 @@ export default function SettingsPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/dashboard")}
+                aria-label="Back to dashboard"
+              >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
@@ -193,7 +198,7 @@ export default function SettingsPage() {
                 <div>
                   <Label htmlFor="email">Email Address</Label>
                   <Input id="email" type="email" value={profile.email} disabled className="bg-gray-50" />
-                  <p className="text-xs text-gray-600 mt-1">Email cannot be changed</p>
+                  <p className="text-xs text-gray-700 mt-1">Email cannot be changed</p>
                 </div>
 
                 <div>
@@ -210,7 +215,7 @@ export default function SettingsPage() {
 
               <div>
                 <Label>Member Since</Label>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-700 mt-1">
                   {new Date(profile.created_at).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
@@ -240,7 +245,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-900">Delete Account</h3>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-700 mt-1">
                     Permanently delete your account and all associated data. This action cannot be undone.
                   </p>
                 </div>

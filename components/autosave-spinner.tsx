@@ -63,7 +63,7 @@ export function AutosaveSpinner({ isActive, duration, onComplete }: AutosaveSpin
   // Show saved state (persistent until next autosave starts)
   if (showSaved && savedAt) {
     return (
-      <div className="flex items-center text-sm text-green-600 font-medium">
+      <div className="flex items-center text-sm text-green-700 font-medium">
         <div className="w-3 h-3 bg-green-500 rounded-full mr-2" />
         <span>Saved at {savedAt.toLocaleTimeString()}</span>
       </div>
@@ -73,7 +73,7 @@ export function AutosaveSpinner({ isActive, duration, onComplete }: AutosaveSpin
   // Show autosave progress (only when active)
   if (isActive) {
     return (
-      <div className="flex items-center text-sm text-gray-500">
+      <div className="flex items-center text-sm text-gray-700">
         <div className="relative w-3 h-3 mr-2">
           {/* Background circle */}
           <div className="absolute inset-0 bg-gray-200 rounded-full" />

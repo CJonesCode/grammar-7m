@@ -1,21 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { startTimer, endTimer } from "@/lib/debug"
+import { createServerSupabase } from "@/lib/supabase-server"
 
 export async function GET(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createRouteHandlerClient({ cookies })
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get user profile
-    const { data: profile, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+    const { data: profile, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -25,19 +27,23 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Profile API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("GET /api/profile", timer)
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createRouteHandlerClient({ cookies })
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -47,7 +53,7 @@ export async function PUT(request: NextRequest) {
     const { data: profile, error } = await supabase
       .from("users")
       .update({ full_name })
-      .eq("id", user.id)
+      .eq("id", userId)
       .select()
       .single()
 
@@ -59,23 +65,27 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("Update profile API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("PUT /api/profile", timer)
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const timer = startTimer()
   try {
     // Check authentication using the singleton server client
-    const supabase = createRouteHandlerClient({ cookies })
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const supabase = await createServerSupabase()
+    let userId = request.headers.get("x-supa-user")
+    if (!userId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Delete user data (documents will be cascade deleted due to foreign key)
-    const { error: deleteUserError } = await supabase.from("users").delete().eq("id", user.id)
+    const { error: deleteUserError } = await supabase.from("users").delete().eq("id", userId)
     if (deleteUserError) {
       return NextResponse.json({ error: deleteUserError.message }, { status: 500 })
     }
@@ -86,5 +96,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Delete account API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+    endTimer("DELETE /api/profile", timer)
   }
 }
