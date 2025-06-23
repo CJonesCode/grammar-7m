@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Save, BarChart3 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { VersionHistoryDrawer } from "@/components/version-history-drawer"
+import { ResearchDrawer } from "@/components/research-drawer"
 import { AutosaveSpinner } from "@/components/autosave-spinner"
 import { toast } from "@/components/ui/use-toast"
 
@@ -360,6 +361,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             </div>
             <div className="flex items-center space-x-2">
               <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
+              <ResearchDrawer documentId={document.id} documentTitle={document.title} />
               <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
                 Save Now
