@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { calculateReadability } from "@/lib/readability"
+import { generateSuggestions } from "@/lib/grammar"
 import { shouldCreateVersion, createVersion } from "@/lib/version-utils"
 import { startTimer, endTimer } from "@/lib/debug"
 import { createServerSupabase } from "@/lib/supabase-server"
@@ -21,37 +22,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const body = await request.json()
-    const { title, content: newContent } = body
+    const { title, content } = body
 
-    // 1. Fetch the current document to get the old content
-    const { data: existingDocument, error: fetchError } = await supabase
-      .from("documents")
-      .select("content, readability_score")
-      .eq("id", params.id)
-      .eq("user_id", userId)
-      .single()
+    // Calculate readability score
+    const readabilityScore = calculateReadability(content || "")
 
-    if (fetchError || !existingDocument) {
-      return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 })
-    }
-
-    // 2. Decide if a version of the *old* content should be created
-    const oldContent = existingDocument.content || ""
-    const shouldCreate = await shouldCreateVersion(params.id, oldContent, supabase)
-    if (shouldCreate) {
-      await createVersion(params.id, oldContent, existingDocument.readability_score, supabase)
-    }
-
-    // 3. Calculate new readability score for the new content
-    const newReadabilityScore = calculateReadability(newContent || "")
-
-    // 4. Update the main document with the new content
-    const { data: updatedDocument, error: updateError } = await supabase
+    // Update document
+    const { data: updatedDocument, error } = await supabase
       .from("documents")
       .update({
         title: title || "Untitled Document",
-        content: newContent || "",
-        readability_score: newReadabilityScore,
+        content: content || "",
+        readability_score: readabilityScore,
         last_edited_at: new Date().toISOString()
       })
       .eq("id", params.id)
@@ -59,14 +41,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       .select("id, title, content, readability_score, last_edited_at")
       .single()
 
-    if (updateError) {
+    if (error) {
       return NextResponse.json({ error: "Failed to update document" }, { status: 500 })
+    }
+
+    // Create version if content has changed significantly
+    const shouldCreate = await shouldCreateVersion(params.id, content || "", supabase)
+    if (shouldCreate) {
+      await createVersion(params.id, content || "", readabilityScore, supabase)
     }
 
     return NextResponse.json({
       documentId: updatedDocument.id,
       title: updatedDocument.title,
-      content: updatedDocument.content || "",
+      contentLength: updatedDocument.content?.length || 0,
       readabilityScore: updatedDocument.readability_score
     })
   } catch (error) {
