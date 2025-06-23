@@ -17,6 +17,7 @@ import { ResearchDrawer } from "@/components/research-drawer"
 import { AutosaveSpinner } from "@/components/autosave-spinner"
 import { toast } from "@/components/ui/use-toast"
 import Image from "next/image"
+import { useSaveController } from "@/hooks/use-save-controller"
 
 // Avoid NaN when the score hasn't been calculated yet
 function safeRound(value: number | null | undefined) {
@@ -118,19 +119,34 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [autosaveActive, setAutosaveActive] = useState(false)
+  const {
+    autosaveActive,
+    requestSave,
+    manualSave,
+    handleTitleBlur: saveControllerTitleBlur,
+  } = useSaveController({
+    documentId: params.id,
+    initialContent: document?.content || "",
+    initialTitle: document?.title || "",
+    autosaveDelay: AUTOSAVE_DELAY,
+    onSaveSuccess: (data: any) => {
+      // Update local document and readability
+      setDocument(prev => prev ? {
+        ...prev,
+        title: data.title,
+        content: data.content,
+        readability_score: data.readabilityScore,
+        last_edited_at: new Date().toISOString(),
+      } : null)
+      setReadabilityScore(data.readabilityScore)
+    },
+  })
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [showHighlightedView, setShowHighlightedView] = useState(false)
   const [titleInput, setTitleInput] = useState("")
 
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const suggestionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Ref mirrors autosaveActive in real time to avoid stale closures
-  const autosaveActiveRef = useRef(false)
-  useEffect(() => {
-    autosaveActiveRef.current = autosaveActive
-  }, [autosaveActive])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -205,7 +221,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     try {
       // Use client-side Harper for grammar checking
       const harperSuggestions = await checkTextWithHarper(text)
-      console.log("🎯 Editor: Setting suggestions in state:", harperSuggestions)
       setSuggestions(harperSuggestions)
       
       // Store suggestions in database via API
@@ -233,68 +248,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const saveDocument = useCallback(async (content: string, title: string = document?.title || "Untitled Document") => {
-    if (!document?.id) return
-    
-    try {
-      const response = await fetch(`/api/documents/${document.id}/edit`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content, title }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      // Update local document state
-      setDocument(prev => prev ? {
-        ...prev,
-        title: data.title,
-        content: content,
-        readability_score: data.readabilityScore,
-        last_edited_at: new Date().toISOString()
-      } : null)
-      
-      setReadabilityScore(data.readabilityScore)
-      
-    } catch (error) {
-      console.error('Error saving document:', error)
-      toast({
-        title: "Error",
-        description: "Failed to save document",
-        variant: "destructive",
-      })
-    }
-  }, [document?.id, document?.title])
-
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
 
-    // Clear existing timeouts
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
+    // Clear suggestion debounce timer
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current)
     }
 
-    // Start autosave countdown if not already active
-    if (!autosaveActiveRef.current) {
-      console.info("🌀 Spinner activated via handleContentChange")
-      setAutosaveActive(true)
-      autosaveActiveRef.current = true
-    }
-
-    // Debounced save
-    saveTimeoutRef.current = setTimeout(() => {
-      // Keep spinner active; it will deactivate via onComplete callback
-      saveDocument(newContent, titleInput)
-    }, AUTOSAVE_DELAY)
+    // Request save through controller (internally debounced)
+    requestSave(newContent, titleInput)
 
     // Debounced suggestions (separate from save to avoid blocking)
     suggestionTimeoutRef.current = setTimeout(() => {
@@ -303,9 +266,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }
 
   const handleAutosaveComplete = () => {
-    console.info("✅ Spinner completed – resetting active flag")
-    setAutosaveActive(false)
-    autosaveActiveRef.current = false
+    // No-op: controller updates spinner state automatically
   }
 
   const applySuggestion = (suggestion: GrammarSuggestion) => {
@@ -318,7 +279,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id))
 
     // Save the document right away to persist change WITHOUT regenerating suggestions immediately
-    saveDocument(newContent, titleInput)
+    manualSave(newContent, titleInput)
 
     // Focus back to textarea
     if (textareaRef.current) {
@@ -335,36 +296,20 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     handleContentChange(versionContent)
   }
 
-  const handleManualSave = () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-    saveDocument(content, titleInput)
-  }
-
   const handleSuggestionClick = (suggestion: GrammarSuggestion) => {
     // Apply the suggestion when clicked
     applySuggestion(suggestion)
   }
 
-  // Cleanup timeouts on unmount
+  // Cleanup suggestion timer on unmount
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
       if (suggestionTimeoutRef.current) {
         clearTimeout(suggestionTimeoutRef.current)
       }
     }
   }, [])
 
-  // Debug: Monitor suggestions state changes
-  useEffect(() => {
-    console.log("🎯 Editor: Suggestions state updated:", suggestions)
-  }, [suggestions])
-
-  // Keep local title input in sync with document state
   useEffect(() => {
     if (document) {
       setTitleInput(document.title)
@@ -374,10 +319,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   // Rename handler
   const handleTitleBlur = () => {
     if (!document) return
-    const trimmed = titleInput.trim() || "Untitled Document"
-    if (trimmed !== document.title) {
-      saveDocument(content, trimmed)
-    }
+    saveControllerTitleBlur(content, titleInput)
   }
 
   if (authLoading || loading) {
@@ -471,7 +413,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <VersionHistoryDrawer documentId={document.id} onRestoreVersion={handleRestoreVersion} />
                     <ResearchDrawer documentId={document.id} documentTitle={document.title} />
-                    <Button variant="outline" size="sm" onClick={handleManualSave} disabled={saving} className="whitespace-nowrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => manualSave(content, titleInput)}
+                      disabled={autosaveActive}
+                      className="whitespace-nowrap"
+                    >
                       <Save className="h-4 w-4 mr-2" />
                       <span className="hidden sm:inline">Save Now</span>
                     </Button>
